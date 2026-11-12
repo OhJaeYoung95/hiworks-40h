@@ -7,17 +7,55 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { loadPacks, packsScript } = require('./packs.js');
+const { loadPacks, packsScript, PackError } = require('./packs.js');
+const { normalizeTheme, ThemeError } = require('../src/themes.js');
+const { characters: BUILTIN_CHARACTERS } = require('../src/builtin-characters.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const SRC = path.join(ROOT, 'src');
 const PACKS_DIR = path.join(ROOT, 'characters');
 const SAMPLES_DIR = path.join(ROOT, 'samples', 'characters');
+const THEMES_DIR = path.join(ROOT, 'themes');
+
+// themes/<id>.json: 모두에게 목록으로 나오는 공용 테마. 파일을 더하면 목록이 늘어난다.
+// 없는 캐릭터를 가리키면 빌드를 멈춘다.
+function loadThemes(dir, knownIds) {
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith('.json') && !f.startsWith('_'))
+    .sort()
+    .map((file) => {
+      const where = `[테마] themes/${file}`;
+      const id = file.slice(0, -5);
+      if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) throw new PackError(`${where}: 파일 이름은 영문 소문자·숫자·-로 지어 주세요.`);
+      let raw;
+      try {
+        raw = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
+      } catch (e) {
+        throw new PackError(`${where}: JSON을 읽지 못했어요 (${e.message})`);
+      }
+      try {
+        const { theme, warnings } = normalizeTheme(raw, knownIds);
+        if (warnings.length) throw new ThemeError(warnings.join(' '));
+        return { id, ...theme };
+      } catch (e) {
+        throw new PackError(`${where}: ${e.message}`);
+      }
+    });
+}
 
 // 캐릭터 팩 작업실(studio.html)과 그 화면이 쓰는 파일들. 하이웍스 화면과 같은 재생기·검사 규칙을 쓴다.
-function studioFiles() {
+function studioFiles(packs) {
   const samples = loadPacks(SAMPLES_DIR).packs;
+  const src = (file) => fs.readFileSync(path.join(SRC, file), 'utf8');
   return {
+    // 테마 만들기 화면: 하이웍스와 같은 캐릭터 엔진을 이 페이지 아래에 띄워 미리 본다.
+    'themes.html': fs.readFileSync(path.join(ROOT, 'site', 'themes.html'), 'utf8'),
+    'studio/themes.js': src('themes.js'),
+    'studio/builtin-characters.js': src('builtin-characters.js'),
+    'studio/packs-data.js': `${packs}\n`,
+    'studio/mascot.js': src('mascot.js'),
     'studio.html': fs.readFileSync(path.join(ROOT, 'site', 'studio.html'), 'utf8'),
     'studio/pack-rules.js': fs.readFileSync(path.join(__dirname, 'packs.js'), 'utf8'),
     'studio/sprite.js': fs.readFileSync(path.join(SRC, 'sprite.js'), 'utf8'),
@@ -25,8 +63,8 @@ function studioFiles() {
   };
 }
 const SCRIPT_NAME = 'hiworks-40h.user.js';
-// 실행 순서가 중요하다: 설정 → 계산 → 패널 → 기본 캐릭터 → 팩 재생기 → 캐릭터 팩 → 캐릭터 엔진
-const SOURCES = ['config.js', 'calc.js', 'content.js', 'builtin-characters.js', 'sprite.js', 'packs', 'mascot.js'];
+// 실행 순서가 중요하다: 설정 → 계산 → 패널 → 기본 캐릭터 → 팩 재생기 → 테마 규칙 → 캐릭터 팩·공용 테마 → 캐릭터 엔진
+const SOURCES = ['config.js', 'calc.js', 'content.js', 'builtin-characters.js', 'sprite.js', 'themes.js', 'packs', 'mascot.js'];
 
 function readManifest() {
   return JSON.parse(fs.readFileSync(path.join(SRC, 'manifest.json'), 'utf8'));
@@ -46,9 +84,13 @@ function pagesUrl(repository) {
   return `https://${owner.toLowerCase()}.github.io/${repo}/`;
 }
 
-function build({ version, baseUrl, repository, packsDir = PACKS_DIR, includeHidden = false }) {
+function build({ version, baseUrl, repository, packsDir = PACKS_DIR, themesDir = THEMES_DIR, includeHidden = false }) {
   const manifest = readManifest();
-  const packs = packsScript(loadPacks(packsDir, { includeHidden }));
+  const packData = loadPacks(packsDir, { includeHidden });
+  const knownIds = new Set([...BUILTIN_CHARACTERS.map((c) => c.id), ...packData.packs.map((p) => p.id)]);
+  const themes = loadThemes(themesDir, knownIds);
+  // site: 패널의 "테마 만들기" 링크가 여는 배포 주소
+  const packs = packsScript({ ...packData, themes, site: baseUrl });
   const scriptUrl = baseUrl ? baseUrl + SCRIPT_NAME : null;
   const repoUrl = repository ? `https://github.com/${repository}` : null;
 
@@ -83,7 +125,7 @@ function build({ version, baseUrl, repository, packsDir = PACKS_DIR, includeHidd
     .replaceAll('{{LUNCH}}', `${config.lunchStart}~${config.lunchEnd}`)
     .replaceAll('{{FRIDAY_LEAVE}}', config.fridayEarliestLeave);
 
-  return { script, html, packs, studio: studioFiles(), scriptName: SCRIPT_NAME };
+  return { script, html, packs, studio: studioFiles(packs), scriptName: SCRIPT_NAME };
 }
 
 if (require.main === module) {

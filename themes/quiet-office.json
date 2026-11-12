@@ -1,0 +1,8 @@
+{
+  "name": "조용한 사무실",
+  "cast": [
+    { "id": "hodu" },
+    { "id": "mong", "size": 72 },
+    { "id": "kong" }
+  ]
+}

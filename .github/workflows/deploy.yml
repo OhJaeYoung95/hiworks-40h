@@ -30,7 +30,7 @@ jobs:
           node-version: 20
 
       - name: 테스트
-        run: node --test tests/calc.test.js tests/build.test.js
+        run: npm test
 
       - name: 스크립트 빌드
         run: node scripts/build-userscript.js

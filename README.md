@@ -17,15 +17,18 @@
 | `src/mascot.js` | 캐릭터 엔진: 상황을 보고 애니메이션 트리거를 정합니다 |
 | `src/builtin-characters.js` | 기본 캐릭터 다섯(SVG 그림·대사) |
 | `src/sprite.js` | 캐릭터 팩 재생기 (하이웍스 화면과 작업실이 같이 씀) |
+| `src/themes.js` | 테마 규격과 공유 코드 (하이웍스 화면·빌드·테마 만들기 화면이 같이 씀) |
 | `characters/` | **캐릭터 팩**. 규격은 [characters/README.md](characters/README.md) |
+| `themes/` | **공용 테마**. 모두의 🎨 목록에 나옵니다. 규격은 [themes/README.md](themes/README.md) |
 | `samples/characters/` | 기본 캐릭터를 팩 규격으로 뽑은 샘플 (`npm run samples`로 다시 만듦) |
 | `src/manifest.json` | 이름, 설명, 실행 주소, 버전의 "주.부" 부분. 로컬 테스트용 확장 프로그램 설정도 겸합니다 |
 | `scripts/build-userscript.js` | `src/`와 `characters/`를 Tampermonkey 스크립트 하나로, 안내 페이지·작업실과 함께 만듭니다 |
 | `scripts/packs.js` | 캐릭터 팩 규격 검사 (빌드와 작업실이 같이 씀) |
 | `site/index.html` | 동료용 설치 안내 페이지 원본 |
 | `site/studio.html` | 캐릭터 팩 작업실. 배포 후 `…/hiworks-40h/studio.html` |
+| `site/themes.html` | 테마 만들기 화면. 배포 후 `…/hiworks-40h/themes.html` |
 | `.github/workflows/deploy.yml` | 자동 배포 설정 |
-| `tests/` | 계산·빌드 테스트와 동작 확인용 모의 페이지 |
+| `tests/` | 계산·빌드·팩·테마 테스트와 동작 확인용 모의 페이지 |
 
 ## 처음 한 번 설정
 

@@ -15,10 +15,14 @@
   const CUSTOM_KEY = 'hw40-custom-image';
   const CUSTOM_TARGET = 'mong';
   const CUSTOM_MAX_PX = 160;
+  // 테마: 내가 추가한 테마 목록과 지금 고른 테마. 역시 이 브라우저에만 저장된다.
+  const THEMES_KEY = 'hw40-themes';
+  const ACTIVE_KEY = 'hw40-theme';
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const { characters: BUILTINS, meetLines: MEET_LINES, artCss: ART_CSS, confetti: CONFETTI } = globalThis.HW40_BUILTINS;
   const { createSpriteRenderer } = globalThis.HW40_SPRITE;
+  const THEME_RULES = globalThis.HW40_THEMES;
 
   const STYLE = `
     :host { will-change: transform; }
@@ -70,6 +74,8 @@
     ...BUILTINS.filter((d) => (!allowedBuiltins || allowedBuiltins.has(d.id)) && !packIds.has(d.id)),
     ...packDefs,
   ];
+  // 테마에서 고를 수 있는 모든 캐릭터 (config.json으로 기본 목록에서 뺀 캐릭터도 포함)
+  const CATALOG = new Map([...BUILTINS.filter((d) => !packIds.has(d.id)), ...packDefs].map((d) => [d.id, d]));
 
 
   function readOff() {
@@ -104,6 +110,24 @@
       return false;
     }
   }
+  function readJson(key, fallback) {
+    try {
+      const v = JSON.parse(localStorage.getItem(key));
+      return v === null ? fallback : v;
+    } catch {
+      return fallback;
+    }
+  }
+  function writeValue(key, value) {
+    try {
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   const customArt = (url) => `
     <g id="body"><image href="${url}" x="-8" y="-14" width="80" height="78" preserveAspectRatio="xMidYMax meet"/></g>`;
 
@@ -138,17 +162,18 @@
     return url ? customArt(url) : def.art;
   };
 
-  function createMascot(def, index, count) {
+  // look: 테마가 정한 이름(name)과 크기(size)
+  function createMascot(def, index, count, look = {}) {
     // 패널보다 낮은 층에 두어 패널을 가리지 않게 한다. 빈 영역 클릭은 페이지로 통과시킨다.
-    const W = def.pack ? def.pack.size : WIDTH;
+    const W = look.size || (def.pack ? def.pack.size : WIDTH);
     const host = document.createElement('div');
     host.style.cssText = `position:fixed;left:0;bottom:0;width:${W}px;height:${W}px;z-index:${2147483640 + index};pointer-events:none;`;
     document.documentElement.appendChild(host);
     const shadow = host.attachShadow({ mode: 'open' });
-    const label = String(def.label).replace(/[<>&"]/g, '');
+    const label = String(look.name || def.label).replace(/[<>&"]/g, '');
     const figure = def.pack
-      ? `<div id="jump"><div id="sprite" role="img" aria-label="${label}"></div></div>`
-      : `<svg viewBox="0 0 64 64" width="${W}" height="${W}" role="img" aria-label="${label}">${artFor(def)}${CONFETTI}</svg>`;
+      ? `<div id="jump"><div id="sprite" role="img" aria-label="${label}" title="${label}"></div></div>`
+      : `<svg viewBox="0 0 64 64" width="${W}" height="${W}" role="img" aria-label="${label}"><title>${label}</title>${artFor(def)}${CONFETTI}</svg>`;
     shadow.innerHTML = `
       <style>${STYLE}</style>
       <div id="bubble" hidden style="bottom:${W + 6}px"></div>
@@ -162,6 +187,7 @@
 
     const m = {
       id: def.id,
+      name: label,
       w: W,
       def,
       chaser: Boolean(def.chaser),
@@ -203,7 +229,7 @@
     }
 
     m.redraw = () => {
-      if (svg) svg.innerHTML = artFor(def) + CONFETTI;
+      if (svg) svg.innerHTML = `<title>${label}</title>${artFor(def)}${CONFETTI}`;
     };
 
     m.say = (text, ms, align = null, offset = 0) => {
@@ -382,12 +408,87 @@
     return m;
   }
 
-  const mascots = CHARACTERS.map((def, i) => createMascot(def, i, CHARACTERS.length));
-  api.mascots = mascots;
+  // ---------- 테마 ----------
+  // 기본: 지금 배포된 캐릭터 그대로. 공용: 저장소 themes/ 폴더. 내 테마: 공유 코드로 추가한 것.
+  const DEFAULT_THEME = { key: 'default', name: '기본', source: 'default', cast: CHARACTERS.map((d) => ({ id: d.id })) };
+  const sharedThemes = (PACKS.themes || []).map((t) => ({ key: `shared:${t.id}`, name: t.name, source: 'shared', cast: t.cast }));
+  const knownIds = new Set(CATALOG.keys());
 
+  function myThemes() {
+    const saved = readJson(THEMES_KEY, []);
+    if (!Array.isArray(saved)) return [];
+    const out = [];
+    for (const t of saved) {
+      try {
+        const { theme } = THEME_RULES.normalizeTheme(t, knownIds);
+        out.push({ key: `mine:${t.key}`, name: theme.name, source: 'mine', cast: theme.cast, savedKey: t.key });
+      } catch {
+        // 이 버전에서 쓸 수 없는 테마는 목록에서 숨긴다 (지우지는 않는다).
+      }
+    }
+    return out;
+  }
+  const allThemes = () => [DEFAULT_THEME, ...sharedThemes, ...myThemes()];
+  const findTheme = (key) => allThemes().find((t) => t.key === key) || DEFAULT_THEME;
+
+  let mascots = [];
   let off = readOff();
   const applyOff = () => mascots.forEach((m) => { m.host.hidden = off; });
-  applyOff();
+
+  // 테마대로 캐릭터를 다시 만든다. 이 버전에 없는 캐릭터는 건너뛴다.
+  function spawn(theme) {
+    for (const m of mascots) m.host.remove();
+    const cast = theme.cast.filter((c) => CATALOG.has(c.id));
+    const list = cast.length ? cast : DEFAULT_THEME.cast;
+    mascots = list.map((c, i) => createMascot(CATALOG.get(c.id), i, list.length, c));
+    api.mascots = mascots;
+    applyOff();
+  }
+
+  let activeKey = findTheme(readJson(ACTIVE_KEY, 'default')).key;
+  spawn(findTheme(activeKey));
+
+  api.themes = {
+    // 캐릭터 목록 (테마 만들기 화면에서 씀)
+    catalog: () => [...CATALOG.values()].map((d) => ({ id: d.id, label: d.label, pack: d.pack || null, art: d.art || null, chaser: Boolean(d.chaser) })),
+    list: () => allThemes().map(({ key, name, source, cast }) => ({ key, name, source, cast })),
+    active: () => activeKey,
+    apply(key) {
+      const theme = findTheme(key);
+      activeKey = theme.key;
+      writeValue(ACTIVE_KEY, activeKey === 'default' ? null : activeKey);
+      spawn(theme);
+      return theme.key;
+    },
+    // 저장하지 않고 잠깐 보여주기 (테마 만들기 화면의 미리 보기)
+    preview(raw) {
+      const { theme, warnings } = THEME_RULES.normalizeTheme(raw, knownIds);
+      spawn(theme);
+      return warnings;
+    },
+    // 공유 코드를 내 테마로 추가하고 바로 적용한다.
+    addCode(code) {
+      const { theme, warnings } = THEME_RULES.normalizeTheme(THEME_RULES.decodeTheme(code), knownIds);
+      const saved = readJson(THEMES_KEY, []);
+      const list = Array.isArray(saved) ? saved : [];
+      const key = Date.now().toString(36);
+      list.push({ key, ...theme });
+      if (!writeValue(THEMES_KEY, list)) throw new THEME_RULES.ThemeError('브라우저 저장소를 쓸 수 없어 테마를 저장하지 못했어요.');
+      api.themes.apply(`mine:${key}`);
+      return { key: `mine:${key}`, name: theme.name, warnings };
+    },
+    remove(key) {
+      const target = myThemes().find((t) => t.key === key);
+      if (!target) return;
+      writeValue(THEMES_KEY, readJson(THEMES_KEY, []).filter((t) => t.key !== target.savedKey));
+      if (activeKey === key) api.themes.apply('default');
+    },
+    code: (key) => {
+      const t = findTheme(key);
+      return THEME_RULES.encodeTheme({ name: t.name, cast: t.cast });
+    },
+    site: PACKS.site || null,
+  };
   api.toggleMascot = () => {
     off = !off;
     applyOff();
@@ -396,6 +497,7 @@
 
   api.pickCustomImage = () => {
     const target = mascots.find((m) => m.id === CUSTOM_TARGET && !m.def.pack);
+    const redrawAll = () => mascots.filter((m) => m.id === CUSTOM_TARGET).forEach((m) => m.redraw());
     if (!target) {
       window.alert('그림을 바꿀 몽실이가 없어요. (캐릭터 팩으로 바뀌었거나 꺼져 있어요)');
       return;
@@ -403,7 +505,7 @@
     const resetPrompt = '원래 몽실이로 되돌릴까요? 취소를 누르면 새 그림을 고릅니다.';
     if (readCustom() && window.confirm(resetPrompt)) {
       writeCustom(null);
-      target.redraw();
+      redrawAll();
       return;
     }
     const input = document.createElement('input');
@@ -418,7 +520,7 @@
           window.alert('브라우저 저장소를 쓸 수 없어 그림을 저장하지 못했어요.');
           return;
         }
-        target.redraw();
+        redrawAll();
         target.say('짠!', 2000);
         target.hop();
       } catch {

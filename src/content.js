@@ -21,9 +21,29 @@
       .row { display: flex; justify-content: space-between; color: #556; font-variant-numeric: tabular-nums; }
       .pill { padding: 6px 12px; background: #fff; border: 1px solid #d5dbe5; border-radius: 16px;
         box-shadow: 0 2px 8px rgba(0,0,0,.15); color: #222; font: 600 13px 'Malgun Gothic', sans-serif; }
+      .menu { margin: 8px 0 10px; padding: 8px; background: #f5f7fa; border-radius: 6px; }
+      .menu-title { font-size: 12px; color: #667; margin-bottom: 4px; }
+      .theme { display: flex; align-items: center; gap: 4px; }
+      .theme .pick { flex: 1; text-align: left; font-size: 13px; color: #222; padding: 3px 4px; border-radius: 4px; }
+      .theme .pick:hover { background: #e8ecf3; }
+      .theme .pick[aria-checked="true"] { font-weight: 700; color: #3b5ba9; }
+      .theme .pick[aria-checked="true"]::before { content: '● '; }
+      .theme .pick[aria-checked="false"]::before { content: '○ '; color: #99a; }
+      .tag { font-size: 10px; color: #778; border: 1px solid #ccd3df; border-radius: 8px; padding: 0 5px; margin-left: 4px; }
+      .menu-actions { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; font-size: 12px; }
+      .menu-actions button, .menu-actions a { font-size: 12px; color: #3b5ba9; text-decoration: none; padding: 0; }
+      .msg { font-size: 12px; color: #556; margin-top: 4px; }
     </style>
     <div class="panel" id="panel">
-      <div class="head"><span id="title"></span><span><button id="pet" title="캐릭터 켜기/끄기">🐾</button><button id="pic" title="몽실이를 내 그림으로 바꾸기 (이 브라우저에만 저장)">🖼</button><button id="min" title="접기">–</button></span></div>
+      <div class="head"><span id="title"></span><span><button id="pet" title="캐릭터 켜기/끄기">🐾</button><button id="theme" title="테마 바꾸기">🎨</button><button id="pic" title="몽실이를 내 그림으로 바꾸기 (이 브라우저에만 저장)">🖼</button><button id="min" title="접기">–</button></span></div>
+      <div class="menu" id="themeMenu" hidden>
+        <div class="menu-title">캐릭터 테마</div>
+        <div id="themeList" role="radiogroup" aria-label="캐릭터 테마"></div>
+        <div class="menu-actions">
+          <button id="themeAdd">＋ 코드로 추가</button><button id="themeCopy">코드 복사</button><a id="themeMake" target="_blank" rel="noopener" hidden>테마 만들기 ↗</a>
+        </div>
+        <div class="msg" id="themeMsg" hidden></div>
+      </div>
       <div class="main" id="main"></div>
       <div class="note" id="note"></div>
       <div id="rows"></div>
@@ -39,6 +59,84 @@
   $('pill').onclick = () => setCollapsed(false);
   $('pet').onclick = () => globalThis.HW40.toggleMascot();
   $('pic').onclick = () => globalThis.HW40.pickCustomImage();
+
+  // ---------- 테마 목록 ----------
+  // 기본 · 공용(저장소 themes/) · 내 테마(공유 코드로 추가). 고른 테마는 이 브라우저에만 저장된다.
+  const themes = () => globalThis.HW40.themes;
+  const message = (text) => {
+    $('themeMsg').textContent = text || '';
+    $('themeMsg').hidden = !text;
+  };
+  function renderThemes() {
+    const t = themes();
+    if (!t) return;
+    const active = t.active();
+    $('themeList').replaceChildren(
+      ...t.list().map((theme) => {
+        const row = document.createElement('div');
+        row.className = 'theme';
+        const pick = document.createElement('button');
+        pick.className = 'pick';
+        pick.setAttribute('role', 'radio');
+        pick.setAttribute('aria-checked', String(theme.key === active));
+        pick.textContent = theme.name;
+        pick.title = `${theme.cast.length}명`;
+        if (theme.source !== 'default') {
+          const tag = document.createElement('span');
+          tag.className = 'tag';
+          tag.textContent = theme.source === 'shared' ? '공용' : '내 테마';
+          pick.appendChild(tag);
+        }
+        pick.onclick = () => {
+          t.apply(theme.key);
+          message('');
+          renderThemes();
+        };
+        row.appendChild(pick);
+        if (theme.source === 'mine') {
+          const del = document.createElement('button');
+          del.textContent = '✕';
+          del.title = '이 테마 지우기';
+          del.onclick = () => {
+            if (!window.confirm(`"${theme.name}" 테마를 지울까요?`)) return;
+            t.remove(theme.key);
+            renderThemes();
+          };
+          row.appendChild(del);
+        }
+        return row;
+      })
+    );
+    if (t.site) {
+      $('themeMake').href = `${t.site}themes.html`;
+      $('themeMake').hidden = false;
+    }
+  }
+  $('theme').onclick = () => {
+    $('themeMenu').hidden = !$('themeMenu').hidden;
+    message('');
+    renderThemes();
+  };
+  $('themeAdd').onclick = () => {
+    const code = window.prompt('받은 테마 코드를 붙여 넣으세요. (HW40T1.로 시작)');
+    if (!code) return;
+    try {
+      const { name, warnings } = themes().addCode(code);
+      message(`"${name}" 테마를 추가했어요.${warnings.length ? ` ${warnings.join(' ')}` : ''}`);
+    } catch (e) {
+      message(e.message);
+    }
+    renderThemes();
+  };
+  $('themeCopy').onclick = async () => {
+    const code = themes().code(themes().active());
+    try {
+      await navigator.clipboard.writeText(code);
+      message('지금 테마 코드를 복사했어요. 동료에게 보내 주세요.');
+    } catch {
+      window.prompt('이 코드를 복사해 동료에게 보내 주세요.', code);
+    }
+  };
 
   const COLOR = { wait: '#8fa3c9', done: '#7fa650', warn: '#d9822b' };
 

@@ -29,7 +29,7 @@
   // 캐릭터 팩은 npm run build 가 만든 dist/packs.js 에서 읽는다 (예시 팩: HW40_INCLUDE_EXAMPLES=1).
   const files = params.has('build')
     ? ['../dist/hiworks-40h.user.js']
-    : ['../src/config.js', '../src/calc.js', '../src/content.js', '../src/builtin-characters.js', '../src/sprite.js', '../dist/packs.js', '../src/mascot.js'];
+    : ['../src/config.js', '../src/calc.js', '../src/content.js', '../src/builtin-characters.js', '../src/sprite.js', '../src/themes.js', '../dist/packs.js', '../src/mascot.js'];
   for (const src of files) {
     const s = document.createElement('script');
     s.src = src;
