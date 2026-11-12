@@ -212,14 +212,63 @@
       </g>`,
   };
 
+  // 양쪽 귀가 축 늘어진 크림색 토끼. 통통하고 느긋하며 간식을 좋아한다.
+  const MONG = {
+    id: 'mong',
+    label: '몽실이',
+    speed: 22,
+    pauseChance: 0.6,
+    partyLine: '오예~ 퇴근!',
+    restLine: 'Zz',
+    skits: {
+      eat: { ms: 3000, text: '쿠키 냠', sayAt: 200 },
+      nap: { ms: 3600, text: '꾸벅…', sayAt: 300 },
+    },
+    art: `
+      ${legs('#f3e3b8')}
+      <g id="body">
+        <path d="M22 17 C14 12 6 16 4 26 C2 36 4 46 8 47 C12 48 13 40 14 32 C15 26 18 22 24 21 Z" fill="#fbf0cf" stroke="#4a3520" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M16 19 C10 21 7.5 30 8 42" fill="none" stroke="#f4b9c4" stroke-width="2.6" stroke-linecap="round"/>
+        <path d="M42 17 C50 12 58 16 60 26 C62 36 60 46 56 47 C52 48 51 40 50 32 C49 26 46 22 40 21 Z" fill="#fbf0cf" stroke="#4a3520" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M48 19 C54 21 56.5 30 56 42" fill="none" stroke="#f4b9c4" stroke-width="2.6" stroke-linecap="round"/>
+        <ellipse cx="32" cy="34" rx="22" ry="20" fill="#fdf3d6" stroke="#4a3520" stroke-width="2"/>
+        <ellipse cx="24" cy="23" rx="5" ry="2.6" fill="#fff" opacity=".7"/>
+        <ellipse cx="14" cy="45" rx="3" ry="4" fill="#fdf3d6" stroke="#4a3520" stroke-width="1.8"/>
+        <ellipse cx="50" cy="45" rx="3" ry="4" fill="#fdf3d6" stroke="#4a3520" stroke-width="1.8"/>
+        <g id="eyes-open">
+          <circle cx="25" cy="33" r="3" fill="#3d2a17"/>
+          <circle cx="39" cy="33" r="3" fill="#3d2a17"/>
+          <circle cx="26" cy="32" r="1.1" fill="#fff"/>
+          <circle cx="40" cy="32" r="1.1" fill="#fff"/>
+        </g>
+        <g id="eyes-closed" fill="none" stroke="#3d2a17" stroke-width="1.8" stroke-linecap="round">
+          <path d="M22 33.5 Q25 31 28 33.5"/>
+          <path d="M36 33.5 Q39 31 42 33.5"/>
+        </g>
+        <circle cx="19" cy="39" r="3.2" fill="#f7a8b4" opacity=".85"/>
+        <circle cx="45" cy="39" r="3.2" fill="#f7a8b4" opacity=".85"/>
+        <ellipse cx="32" cy="37" rx="1.8" ry="1.3" fill="#e9839a"/>
+        <path d="M32 38.3 V40 M29.5 41 Q32 43 34.5 41" fill="none" stroke="#3d2a17" stroke-width="1.4" stroke-linecap="round"/>
+      </g>
+      <g id="food" class="prop">
+        <circle cx="50" cy="45" r="6" fill="#d9a060" stroke="#6b4a2b" stroke-width="1.5"/>
+        <circle cx="48" cy="43" r="1.1" fill="#5a3a1e"/>
+        <circle cx="52" cy="46" r="1.1" fill="#5a3a1e"/>
+        <circle cx="49" cy="48" r="1" fill="#5a3a1e"/>
+      </g>`,
+  };
+
   // 왼쪽부터의 축하 자리 순서. 말풍선이 긴 콩떡이가 오른쪽을 쓴다.
-  const CHARACTERS = [PPYONG, HODU, KONG];
+  const CHARACTERS = [PPYONG, HODU, MONG, KONG];
 
   // 둘이 마주쳤을 때 대사 (id 알파벳순 키)
   const MEET_LINES = {
     'kong+ppyong': { ppyong: '비켜비켜!', kong: '히익!' },
     'hodu+ppyong': { ppyong: '같이 놀자!', hodu: '바빠.' },
     'hodu+kong': { kong: '안녕…', hodu: '오냐.' },
+    'kong+mong': { mong: '같이 간식 먹을래?', kong: '응!' },
+    'hodu+mong': { mong: '선배 쿠키 드실래요?', hodu: '하나만.' },
+    'mong+ppyong': { ppyong: '느림보다!', mong: '천천히 가도 돼~' },
   };
 
   function readOff() {
