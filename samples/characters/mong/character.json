@@ -1,0 +1,62 @@
+{
+  "id": "mong",
+  "label": "몽실이",
+  "size": 84,
+  "speed": 22,
+  "pauseChance": 0.6,
+  "facing": "right",
+  "lines": {
+    "celebrate": "오예~ 퇴근!",
+    "rest": "Zz",
+    "meet": {
+      "kong": "같이 간식 먹을래?",
+      "hodu": "선배 쿠키 드실래요?",
+      "ppyong": "천천히 가도 돼~"
+    }
+  },
+  "animations": {
+    "idle": {
+      "frames": [
+        "idle.svg"
+      ]
+    },
+    "walk": {
+      "frames": [
+        "walk.svg"
+      ]
+    },
+    "hurry": {
+      "frames": [
+        "hurry.svg"
+      ]
+    },
+    "celebrate": {
+      "frames": [
+        "celebrate.svg"
+      ]
+    },
+    "rest": {
+      "frames": [
+        "rest.svg"
+      ]
+    },
+    "eat": {
+      "frames": [
+        "eat.svg"
+      ],
+      "special": true,
+      "duration": 3000,
+      "say": "쿠키 냠",
+      "sayAt": 200
+    },
+    "nap": {
+      "frames": [
+        "nap.svg"
+      ],
+      "special": true,
+      "duration": 3600,
+      "say": "꾸벅…",
+      "sayAt": 300
+    }
+  }
+}

@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 -20 84 84" width="84" height="84" class="walk fast"><style>
+    .leg { transform-box: fill-box; transform-origin: top center; }
+    .walk .leg-a { animation: step .5s ease-in-out infinite; }
+    .walk .leg-b { animation: step .5s ease-in-out infinite reverse; }
+    .walk #body { animation: bob .25s ease-in-out infinite alternate; }
+    .fast .leg-a, .fast .leg-b, .skit-zoom .leg-a, .skit-zoom .leg-b { animation-duration: .2s; }
+    .fast #body, .skit-zoom #body { animation-duration: .1s; }
+    .idle #body { animation: breathe 1.6s ease-in-out infinite alternate; }
+    .prop, #confetti, #eyes-closed { display: none; }
+    #body { transform-box: fill-box; transform-origin: bottom center; }
+    .skit-weed #weed { display: inline; animation: weed-pop 3.2s linear infinite; }
+    .skit-weed #body { animation: tug 3.2s ease-in-out infinite; }
+    .skit-tear #tears { display: inline; }
+    .skit-tear #tears path { animation: tear-drop .9s ease-in infinite; }
+    .skit-tear #tears path + path { animation-delay: .45s; }
+    .skit-tear #body { animation: tremble .12s linear infinite alternate; }
+    .skit-eat #food, .skit-carrot #food { display: inline; transform-box: fill-box; transform-origin: center;
+      animation: munch 3s steps(4) infinite; }
+    .skit-eat #body, .skit-carrot #body { animation: bob .22s ease-in-out infinite alternate; }
+    .skit-coffee #mug { display: inline; transform-box: fill-box; transform-origin: left bottom;
+      animation: sip 3.4s ease-in-out infinite; }
+    .skit-nap #eyes-open { display: none; }
+    .skit-nap #eyes-closed { display: inline; }
+    .skit-nap #body { animation: breathe 1.8s ease-in-out infinite alternate; }
+    .skit-roar #body { animation: tremble .08s linear infinite alternate; }
+    .party #cert, .party #confetti { display: inline; }
+    .party #confetti rect { animation: confetti 1.3s linear infinite; }
+    .party #confetti rect:nth-child(2) { animation-delay: .35s; }
+    .party #confetti rect:nth-child(3) { animation-delay: .7s; }
+    .party #confetti rect:nth-child(4) { animation-delay: 1s; }
+    @keyframes step { from { transform: rotate(-24deg); } to { transform: rotate(24deg); } }
+    @keyframes bob { from { transform: translateY(0); } to { transform: translateY(-2px); } }
+    @keyframes breathe { from { transform: translateY(0); } to { transform: translateY(1px); } }
+    @keyframes hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-26px); } }
+    @keyframes tug { 0%, 100% { transform: rotate(0); } 15%, 45% { transform: rotate(9deg); }
+      30%, 60% { transform: rotate(4deg); } 72% { transform: rotate(13deg); } 80% { transform: rotate(-9deg); } }
+    @keyframes weed-pop { 0%, 72% { transform: translateY(0); opacity: 1; }
+      90% { transform: translateY(-16px); opacity: 1; } 100% { transform: translateY(-20px); opacity: 0; } }
+    @keyframes tear-drop { 0%, 65% { opacity: 1; } 0% { transform: translateY(0); }
+      100% { transform: translateY(11px); opacity: 0; } }
+    @keyframes tremble { from { transform: translateX(-.7px); } to { transform: translateX(.7px); } }
+    @keyframes munch { from { transform: scale(1); } to { transform: scale(0); } }
+    @keyframes sip { 0%, 100% { transform: rotate(0); } 25%, 45% { transform: rotate(-32deg); }
+      60%, 80% { transform: rotate(-32deg) translateY(-1px); } }
+    @keyframes confetti { from { transform: translateY(0) rotate(0); opacity: 1; }
+      to { transform: translateY(58px) rotate(200deg); opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+  </style>
+      
+    <g fill="#7a5bb8" stroke="#6b4a2b" stroke-width="2">
+      <rect class="leg leg-a" x="21" y="49" width="8" height="12" rx="4"/>
+      <rect class="leg leg-b" x="35" y="49" width="8" height="12" rx="4"/>
+    </g>
+      <g id="body">
+        <path d="M30 13 L33 2 L37 13 Z" fill="#f3e6c4" stroke="#3a2456" stroke-width="1.8" stroke-linejoin="round"/>
+        <path d="M11 30 C10 18 20 12 32 12 C44 12 54 18 53 30 L56 34 L53 37 L55 42 L51 45 C48 52 40 54 32 54 C24 54 16 52 13 45 L9 42 L11 37 L8 34 Z" fill="#9b7fd4" stroke="#3a2456" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M22 14 L24 9 L27 13 M40 13 L43 9 L44 14" fill="#9b7fd4" stroke="#3a2456" stroke-width="1.6" stroke-linejoin="round"/>
+        <ellipse cx="24" cy="21" rx="5" ry="2.5" fill="#fff" opacity=".35"/>
+        <g id="eyes-open">
+          <circle cx="25" cy="31" r="4.6" fill="#fff" stroke="#3a2456" stroke-width="1.4"/>
+          <circle cx="41" cy="31" r="4.6" fill="#fff" stroke="#3a2456" stroke-width="1.4"/>
+          <circle cx="26" cy="31.5" r="2.2" fill="#2a1a3d"/>
+          <circle cx="42" cy="31.5" r="2.2" fill="#2a1a3d"/>
+        </g>
+        <g id="eyes-closed" fill="none" stroke="#2a1a3d" stroke-width="1.8" stroke-linecap="round">
+          <path d="M21 32 Q25 35 29 32"/>
+          <path d="M37 32 Q41 35 45 32"/>
+        </g>
+        <path d="M24 40 Q33 46 42 40" fill="#5a2d4f" stroke="#2a1a3d" stroke-width="1.6" stroke-linejoin="round"/>
+        <path d="M27 41 L28.5 44 L30 42 M36 42 L37.5 44 L39 41" fill="#fff" stroke="#2a1a3d" stroke-width=".8" stroke-linejoin="round"/>
+        <path d="M11 38 L4 32 M53 38 L60 32" stroke="#3a2456" stroke-width="5" stroke-linecap="round"/>
+        <path d="M11 38 L4 32 M53 38 L60 32" stroke="#9b7fd4" stroke-width="2.6" stroke-linecap="round"/>
+      </g>
+    <g id="confetti">
+      <rect x="4" y="-8" width="4" height="4" fill="#f2a58e"/>
+      <rect x="20" y="-14" width="4" height="4" fill="#8cc152"/>
+      <rect x="40" y="-10" width="4" height="4" fill="#8fd0f2"/>
+      <rect x="56" y="-16" width="4" height="4" fill="#f4c542"/>
+    </g></svg>

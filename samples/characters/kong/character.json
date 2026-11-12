@@ -1,0 +1,66 @@
+{
+  "id": "kong",
+  "label": "콩떡이",
+  "size": 84,
+  "speed": 28,
+  "pauseChance": 0.5,
+  "facing": "right",
+  "lines": {
+    "celebrate": "40시간 합격! 퇴근!",
+    "rest": "Zz",
+    "meet": {
+      "ppyong": "히익!",
+      "hodu": "안녕…",
+      "mong": "응!"
+    }
+  },
+  "animations": {
+    "idle": {
+      "frames": [
+        "idle.svg"
+      ]
+    },
+    "walk": {
+      "frames": [
+        "walk.svg"
+      ]
+    },
+    "hurry": {
+      "frames": [
+        "hurry.svg"
+      ]
+    },
+    "celebrate": {
+      "frames": [
+        "celebrate.svg"
+      ]
+    },
+    "weed": {
+      "frames": [
+        "weed.svg"
+      ],
+      "special": true,
+      "duration": 3200,
+      "say": "뽑았다!",
+      "sayAt": 2400
+    },
+    "tear": {
+      "frames": [
+        "tear.svg"
+      ],
+      "special": true,
+      "duration": 2600,
+      "say": "흐엉…",
+      "sayAt": 200
+    },
+    "eat": {
+      "frames": [
+        "eat.svg"
+      ],
+      "special": true,
+      "duration": 3000,
+      "say": "냠냠",
+      "sayAt": 200
+    }
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "id": "hodu",
+  "label": "호두",
+  "size": 84,
+  "speed": 15,
+  "pauseChance": 0.7,
+  "facing": "right",
+  "lines": {
+    "celebrate": "수고했어",
+    "rest": "수고했어",
+    "meet": {
+      "ppyong": "바빠.",
+      "kong": "오냐.",
+      "mong": "하나만."
+    }
+  },
+  "animations": {
+    "idle": {
+      "frames": [
+        "idle.svg"
+      ]
+    },
+    "walk": {
+      "frames": [
+        "walk.svg"
+      ]
+    },
+    "hurry": {
+      "frames": [
+        "hurry.svg"
+      ]
+    },
+    "celebrate": {
+      "frames": [
+        "celebrate.svg"
+      ]
+    },
+    "rest": {
+      "frames": [
+        "rest.svg"
+      ]
+    },
+    "coffee": {
+      "frames": [
+        "coffee.svg"
+      ],
+      "special": true,
+      "duration": 3400,
+      "say": "후루룩",
+      "sayAt": 900
+    },
+    "nap": {
+      "frames": [
+        "nap.svg"
+      ],
+      "special": true,
+      "duration": 3600,
+      "say": "Zz",
+      "sayAt": 300
+    }
+  }
+}

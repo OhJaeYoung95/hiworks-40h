@@ -3,8 +3,9 @@
   "private": true,
   "description": "하이웍스 근무 페이지에 금요일 퇴근 가능 시각을 띄우는 비공식 Tampermonkey 스크립트",
   "scripts": {
-    "test": "node --test tests/calc.test.js tests/build.test.js",
+    "test": "node --test tests/calc.test.js tests/build.test.js tests/packs.test.js",
     "build": "node scripts/build-userscript.js",
-    "mock": "node tests/serve.js"
+    "mock": "node tests/serve.js",
+    "samples": "node scripts/export-samples.js"
   }
 }

@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>캐릭터 팩 작업실</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --surface: #ffffff; --surface-2: #f0eee9; --text: #2b2723; --muted: #756d64;
+    --line: #e2ded6; --accent: #6b5bd6; --accent-text: #ffffff; --ok: #2f8a4c; --warn: #a86a00; --err: #c23b32;
+    --stage: #fbfaf7; --ground: #d9d3c7; --bubble-bg: #ffffff; --bubble-line: #6b4a2b; --bubble-text: #4a3520;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1b1a; --surface: #262523; --surface-2: #302e2b; --text: #ece8e2; --muted: #a59d93;
+      --line: #3b3935; --accent: #9d90f0; --accent-text: #1c1b1a; --ok: #6cc58a; --warn: #e0a84a; --err: #f07b72;
+      --stage: #22211f; --ground: #4a463f; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1b1a; --surface: #262523; --surface-2: #302e2b; --text: #ece8e2; --muted: #a59d93;
+    --line: #3b3935; --accent: #9d90f0; --accent-text: #1c1b1a; --ok: #6cc58a; --warn: #e0a84a; --err: #f07b72;
+    --stage: #22211f; --ground: #4a463f; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 16px; margin: 0 8px 0 0; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button, select { font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: transparent; font-weight: 600; }
+  button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: transparent; }
+  button:disabled { opacity: .5; cursor: default; }
+  label.check { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); }
+  main { max-width: 1180px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 320px; }
+  @media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); } }
+  section { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+  section h2 { font-size: 14px; margin: 0 0 10px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  section h2 small { color: var(--muted); font-weight: 400; }
+  .col { display: grid; gap: 16px; align-content: start; min-width: 0; }
+  #status { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+  #status li { padding: 8px 10px; border-radius: 8px; background: var(--surface-2); border-left: 3px solid var(--muted); overflow-wrap: anywhere; }
+  #status li.ok { border-color: var(--ok); } #status li.warn { border-color: var(--warn); } #status li.err { border-color: var(--err); color: var(--err); }
+  .empty { color: var(--muted); padding: 28px 8px; text-align: center; }
+
+  /* 무대 */
+  #stage { position: relative; height: 220px; background: var(--stage); border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+  #stage::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 22px; background: var(--ground); }
+  #actor { position: absolute; left: 0; bottom: 22px; will-change: transform; }
+  .bubble { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 4px 9px; background: var(--bubble-bg); color: var(--bubble-text); border: 1.5px solid var(--bubble-line); border-radius: 10px; font-weight: 600; font-size: 12px; }
+  .now { margin-top: 8px; color: var(--muted); font-size: 13px; }
+  .now b { color: var(--text); }
+  .triggers { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .triggers button { padding: 5px 10px; font-size: 13px; }
+  .triggers .sep { width: 100%; height: 0; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 10px; color: var(--muted); }
+
+  /* 애니메이션 목록 */
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .tile { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: var(--surface-2); display: grid; gap: 6px; }
+  .tile .view { height: 110px; display: flex; align-items: flex-end; justify-content: center; background: var(--stage); border-radius: 8px; overflow: hidden; }
+  .tile .name { font-weight: 600; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .tag { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 99px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
+  .tag.special { color: var(--accent); border-color: var(--accent); }
+  .tile .meta { color: var(--muted); font-size: 12px; }
+
+  /* 트리거 연결표 */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 400; }
+  td.fallback { color: var(--warn); }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
+  dt { color: var(--muted); } dd { margin: 0; overflow-wrap: anywhere; }
+  code { font-family: Consolas, monospace; font-size: 12px; background: var(--surface-2); padding: 1px 4px; border-radius: 4px; }
+
+  /* 엔진과 같은 움직임 효과 */
+  .figure { position: relative; }
+  .jump { width: 100%; height: 100%; }
+  .sprite { width: 100%; height: 100%; background-repeat: no-repeat; background-position: center bottom; background-size: contain; transform-origin: bottom center; }
+  .hop:not(.nobounce) .jump { animation: hop .6s cubic-bezier(.3,.7,.4,1); }
+  .party:not(.nobounce) .jump { animation: hop .6s cubic-bezier(.3,.7,.4,1) infinite; }
+  .motion-bob { animation: bob .25s ease-in-out infinite alternate; }
+  .motion-breathe { animation: breathe 1.6s ease-in-out infinite alternate; }
+  .motion-shake { animation: tremble .1s linear infinite alternate; }
+  .motion-wobble { animation: wobble .8s ease-in-out infinite alternate; }
+  @keyframes bob { from { transform: translateY(0); } to { transform: translateY(-2px); } }
+  @keyframes breathe { from { transform: translateY(0); } to { transform: translateY(1px); } }
+  @keyframes tremble { from { transform: translateX(-.7px); } to { transform: translateX(.7px); } }
+  @keyframes wobble { from { transform: rotate(-6deg); } to { transform: rotate(6deg); } }
+  @keyframes hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-26px); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>캐릭터 팩 작업실</h1>
+  <div class="controls">
+    <button class="primary" id="open">팩 폴더 열기</button>
+    <input type="file" id="folderInput" webkitdirectory hidden>
+    <select id="packSelect" hidden aria-label="폴더 안의 팩 고르기"></select>
+    <button id="reload" disabled>다시 읽기</button>
+    <label class="check"><input type="checkbox" id="watch" checked> 파일이 바뀌면 자동으로 다시 읽기</label>
+    <select id="samples" aria-label="샘플 팩 불러오기"><option value="">샘플 팩 보기…</option></select>
+  </div>
+</header>
+
+<main>
+  <div class="col">
+    <section>
+      <h2>무대 <small id="packName">팩을 열어 주세요</small></h2>
+      <div id="stage"><div id="actor" hidden></div></div>
+      <div class="now">지금 트리거 <b id="nowTrigger">-</b> → 재생 <b id="nowAnim">-</b></div>
+      <div class="triggers" id="triggers"></div>
+      <div class="row">
+        <span>방향</span>
+        <button id="dirLeft">◀ 왼쪽</button><button id="dirRight" aria-pressed="true">오른쪽 ▶</button>
+        <span>확대</span>
+        <select id="zoom"><option value="1">1배</option><option value="2" selected>2배</option><option value="3">3배</option></select>
+        <label class="check"><input type="checkbox" id="moveCheck" checked> 걷는 트리거는 실제로 움직이기</label>
+      </div>
+    </section>
+
+    <section>
+      <h2>애니메이션 <small>파일마다 반복 재생</small></h2>
+      <div id="grid"><div class="empty">팩 폴더를 열거나 샘플 팩을 골라 주세요.</div></div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section>
+      <h2>검사 결과</h2>
+      <ul id="status"><li>아직 연 팩이 없어요.</li></ul>
+    </section>
+    <section>
+      <h2>트리거 연결 <small>없으면 대신 재생</small></h2>
+      <table><thead><tr><th>트리거</th><th>언제</th><th>재생</th></tr></thead><tbody id="map"></tbody></table>
+    </section>
+    <section>
+      <h2>팩 정보</h2>
+      <dl id="info"><dt>-</dt><dd>-</dd></dl>
+    </section>
+    <section>
+      <h2>사용 방법</h2>
+      <ol style="margin:0;padding-left:18px;display:grid;gap:4px;font-size:13px">
+        <li>저장소 <code>characters/&lt;id&gt;/</code> 폴더에 <code>character.json</code>과 이미지를 둡니다.</li>
+        <li><b>팩 폴더 열기</b>로 그 폴더(또는 <code>characters</code> 폴더)를 고릅니다.</li>
+        <li>파일을 고치면 이 화면이 자동으로 다시 읽어요. 트리거 버튼으로 상황별 재생을 확인합니다.</li>
+        <li>문제가 없으면 커밋·푸시. 배포 때 이미지가 스크립트에 묶여 모두에게 적용됩니다.</li>
+      </ol>
+      <p style="margin:10px 0 0;font-size:13px;color:var(--muted)">규격 전체: 저장소의 <code>characters/README.md</code>. 이 화면은 고른 파일을 이 브라우저 안에서만 읽고 어디로도 보내지 않아요.</p>
+    </section>
+  </div>
+</main>
+
+<script src="studio/pack-rules.js"></script>
+<script src="studio/sprite.js"></script>
+<script src="studio/samples.js"></script>
+<script>
+(function () {
+  const RULES = window.HW40_PACK_RULES;
+  const { FALLBACKS, createSpriteRenderer } = window.HW40_SPRITE;
+  const SAMPLES = window.HW40_SAMPLES || [];
+  const $ = (id) => document.getElementById(id);
+
+  const TRIGGER_INFO = {
+    idle: '멈춰 있을 때 (필수)',
+    walk: '돌아다닐 때',
+    hurry: '퇴근 1시간 전, 축하·휴식 자리로 갈 때',
+    flee: '괴물에게 쫓겨 도망갈 때',
+    chase: '괴물이 쫓아갈 때 (chaser 팩)',
+    celebrate: '40시간 달성 축하',
+    rest: '퇴근 후 쉬는 중',
+    hop: '가끔 폴짝 뛸 때 (한 번 재생)',
+    click: '캐릭터를 눌렀을 때 (한 번 재생)',
+    meet: '다른 캐릭터와 마주쳤을 때',
+  };
+  const MOVING = { walk: 1, hurry: 2.7, flee: 2.7, chase: 2 };
+  const ONE_SHOT_MS = 600;
+
+  let pack = null;
+  let source = null; // { kind: 'handle'|'files'|'sample', ... }
+  let signature = '';
+
+  // ---------- 폴더 읽기 ----------
+  const readAsDataUrl = (file) =>
+    new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+      r.readAsDataURL(file);
+    });
+
+  // 디렉터리 핸들에서 파일 목록 {경로: File}을 만든다 (하위 폴더 한 단계까지).
+  async function filesFromHandle(handle, prefix = '', depth = 0, out = {}) {
+    for await (const entry of handle.values()) {
+      if (entry.kind === 'file') out[prefix + entry.name] = await entry.getFile();
+      else if (depth < 2) await filesFromHandle(entry, `${prefix}${entry.name}/`, depth + 1, out);
+    }
+    return out;
+  }
+
+  function filesFromInput(list) {
+    const out = {};
+    for (const f of list) out[f.webkitRelativePath.split('/').slice(1).join('/')] = f;
+    return out;
+  }
+
+  // 고른 폴더가 팩 하나인지, 팩 여러 개를 담은 폴더(characters/)인지 본다.
+  function packFolders(files) {
+    if (files['character.json']) return [''];
+    return Object.keys(files)
+      .filter((p) => /^[^/]+\/character\.json$/.test(p))
+      .map((p) => p.split('/')[0] + '/')
+      .sort();
+  }
+
+  async function loadFromFiles(files, prefix, folderName) {
+    const specFile = files[`${prefix}character.json`];
+    let spec;
+    try {
+      spec = JSON.parse(await specFile.text());
+    } catch (e) {
+      throw new RULES.PackError(`[캐릭터 팩] ${folderName}/character.json: JSON을 읽지 못했어요 (${e.message})`);
+    }
+    const urls = {};
+    for (const [p, f] of Object.entries(files)) {
+      if (p.startsWith(prefix) && RULES.MIME[(/\.[^.]+$/.exec(p) || [''])[0].toLowerCase()]) urls[p.slice(prefix.length)] = await readAsDataUrl(f);
+    }
+    const used = new Set();
+    const result = RULES.normalizePack(spec, folderName, (file, where) => {
+      const key = file.replace(/^\.\//, '');
+      if (!urls[key]) throw new RULES.PackError(`[캐릭터 팩] ${where}: "${file}" 파일이 없어요.`);
+      used.add(key);
+      return urls[key];
+    });
+    result.unused = Object.keys(urls).filter((k) => !used.has(k));
+    return { pack: result, spec };
+  }
+
+  function sigOf(files) {
+    return Object.entries(files).map(([p, f]) => `${p}:${f.size}:${f.lastModified}`).sort().join('|');
+  }
+
+  async function refresh(force = false) {
+    if (!source || source.kind === 'sample') return;
+    try {
+      const files = source.kind === 'handle' ? await filesFromHandle(source.handle) : source.files;
+      const sig = sigOf(files);
+      if (!force && sig === signature) return;
+      signature = sig;
+      const folders = packFolders(files);
+      const sel = $('packSelect');
+      if (!folders.length) {
+        showError(`"${source.name}" 폴더에서 character.json을 찾지 못했어요. 팩 폴더나 characters 폴더를 골라 주세요.`);
+        return;
+      }
+      const keep = folders.includes(sel.value) ? sel.value : folders[0];
+      sel.hidden = folders.length < 2 && folders[0] === '';
+      sel.innerHTML = folders.map((f) => `<option value="${f}">${f ? f.slice(0, -1) : source.name}</option>`).join('');
+      sel.value = keep;
+      const folderName = keep ? keep.slice(0, -1) : source.name;
+      const { pack: p, spec } = await loadFromFiles(files, keep, folderName);
+      show(p, spec);
+    } catch (e) {
+      showError(e instanceof RULES.PackError ? e.message : `읽는 중 오류: ${e.message}`);
+    }
+  }
+
+  $('open').onclick = async () => {
+    if (window.showDirectoryPicker) {
+      try {
+        const handle = await window.showDirectoryPicker({ mode: 'read' });
+        source = { kind: 'handle', handle, name: handle.name };
+      } catch (e) {
+        if (e.name !== 'AbortError') showError(`폴더를 열지 못했어요: ${e.message}`);
+        return;
+      }
+      $('reload').disabled = false;
+      $('samples').value = '';
+      refresh(true);
+    } else {
+      $('folderInput').click();
+    }
+  };
+  $('folderInput').onchange = (e) => {
+    const list = e.target.files;
+    if (!list.length) return;
+    source = { kind: 'files', files: filesFromInput(list), name: list[0].webkitRelativePath.split('/')[0] };
+    $('reload').disabled = true; // 이 방식은 다시 고르기 전까지 같은 파일을 본다
+    $('watch').disabled = true;
+    $('samples').value = '';
+    refresh(true);
+  };
+  $('packSelect').onchange = () => refresh(true);
+  $('reload').onclick = () => refresh(true);
+  setInterval(() => {
+    if ($('watch').checked && source && source.kind === 'handle') refresh(false);
+  }, 1500);
+
+  for (const s of SAMPLES) $('samples').insertAdjacentHTML('beforeend', `<option value="${s.id}">${s.label} (${s.id})</option>`);
+  $('samples').onchange = () => {
+    const s = SAMPLES.find((x) => x.id === $('samples').value);
+    if (!s) return;
+    source = { kind: 'sample' };
+    $('packSelect').hidden = true;
+    $('reload').disabled = true;
+    show({ ...s, unused: [] }, null, true);
+  };
+
+  // ---------- 화면 ----------
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+  function resolve(state, dir) {
+    for (const name of FALLBACKS[state] || [state, 'idle']) {
+      if (dir < 0 && pack.animations[`${name}_left`]) return `${name}_left`;
+      if (pack.animations[name]) return name;
+    }
+    return 'idle';
+  }
+
+  function showError(message) {
+    $('status').innerHTML = `<li class="err">${esc(message)}</li>`;
+  }
+
+  let tiles = [];
+  function show(p, spec, isSample = false) {
+    pack = p;
+    $('packName').textContent = `${p.label} (${p.id})`;
+
+    // 검사 결과
+    const notes = [`<li class="ok">규격 검사 통과${isSample ? ' — 기본 캐릭터 샘플' : ''}</li>`];
+    const missing = RULES.TRIGGERS.filter((t) => !p.animations[t] && t !== 'idle');
+    if (missing.length) notes.push(`<li class="warn">전용 애니메이션이 없는 트리거: ${missing.join(', ')} — 다른 애니메이션으로 대신 재생해요.</li>`);
+    if (!p.chaser && p.animations.chase) notes.push('<li class="warn">chase 애니메이션이 있지만 "chaser": true가 아니라 쓰이지 않아요.</li>');
+    if (p.unused && p.unused.length) notes.push(`<li class="warn">쓰이지 않는 이미지: ${p.unused.map(esc).join(', ')}</li>`);
+    const bytes = JSON.stringify(p).length;
+    notes.push(`<li>스크립트에 묶일 크기 약 ${(bytes / 1024).toFixed(0)}KB${bytes > 3 * 1024 * 1024 ? ' — 너무 커요. 이미지를 줄여 주세요.' : ''}</li>`);
+    $('status').innerHTML = notes.join('');
+
+    // 팩 정보
+    const meet = Object.entries(p.lines.meet).map(([k, v]) => `${esc(k)}: “${esc(v)}”`).join('<br>') || '-';
+    $('info').innerHTML = [
+      ['id', `<code>${esc(p.id)}</code>`], ['이름', esc(p.label)], ['크기', `${p.size}px`], ['속도', `${p.speed}px/초`],
+      ['멈춤 확률', p.pauseChance], ['바라보는 방향', p.facing], ['쫓는 캐릭터', p.chaser ? '예' : '아니요'],
+      ['폴짝 효과', p.bounce ? '켜짐' : '꺼짐'], ['축하 대사', esc(p.lines.celebrate)], ['휴식 대사', esc(p.lines.rest)], ['만남 대사', meet],
+    ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+
+    // 트리거 연결표
+    const specials = Object.entries(p.animations).filter(([, a]) => a.special);
+    $('map').innerHTML = [
+      ...RULES.TRIGGERS.map((t) => {
+        const r = resolve(t, 1);
+        return `<tr><td><code>${t}</code></td><td>${TRIGGER_INFO[t]}</td><td class="${r === t ? '' : 'fallback'}">${r}${r === t ? '' : ' (대신)'}</td></tr>`;
+      }),
+      ...specials.map(([n, a]) => `<tr><td><code>${esc(n)}</code></td><td>특수: 쉬는 중 가끔${a.special.moving ? ', 움직이며' : ''} · ${a.special.ms}ms${a.special.text ? ` · “${esc(a.special.text)}”` : ''}</td><td>${esc(n)}</td></tr>`),
+    ].join('');
+
+    // 애니메이션 목록
+    tiles = [];
+    const grid = $('grid');
+    grid.innerHTML = '';
+    for (const [name, a] of Object.entries(p.animations)) {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      const count = a.sheet ? a.count : a.frames.length;
+      const kind = RULES.TRIGGERS.includes(name.replace(/_left$/, '')) ? '트리거' : a.special ? '특수' : '기타';
+      tile.innerHTML = `
+        <div class="view"><div class="figure"><div class="jump"><div class="sprite"></div></div></div></div>
+        <div class="name">${esc(name)} <span class="tag ${a.special ? 'special' : ''}">${kind}</span>${/_left$/.test(name) ? '<span class="tag">왼쪽용</span>' : ''}</div>
+        <div class="meta">${a.sheet ? `시트 ${count}칸` : `프레임 ${count}장`} · ${a.fps}fps · ${a.loop ? '반복' : '한 번'}${a.motion !== 'none' ? ` · ${a.motion}` : ''}</div>`;
+      grid.appendChild(tile);
+      const fig = tile.querySelector('.figure');
+      const s = Math.min(1, 100 / p.size);
+      fig.style.width = fig.style.height = `${p.size * s}px`;
+      const render = createSpriteRenderer({ ...p, animations: { ...p.animations, idle: a, [name]: a } }, tile.querySelector('.sprite'));
+      tiles.push({ fig, render, name, startedAt: performance.now() });
+    }
+
+    // 무대 버튼
+    const tb = $('triggers');
+    tb.innerHTML = '';
+    const addBtn = (name, label) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.dataset.trigger = name;
+      b.onclick = () => trigger(name);
+      tb.appendChild(b);
+    };
+    for (const t of RULES.TRIGGERS) addBtn(t, t);
+    if (specials.length) {
+      tb.insertAdjacentHTML('beforeend', '<span class="sep"></span>');
+      for (const [n] of specials) addBtn(n, `★ ${n}`);
+    }
+    setupActor();
+    trigger('walk');
+  }
+
+  // ---------- 무대 ----------
+  const actor = $('actor');
+  let stage = null;
+
+  function setupActor() {
+    actor.hidden = false;
+    actor.innerHTML = '<div class="bubble" hidden></div><div class="figure"><div class="jump"><div class="sprite"></div></div></div>';
+    const fig = actor.querySelector('.figure');
+    stage = {
+      fig,
+      bubble: actor.querySelector('.bubble'),
+      render: createSpriteRenderer(pack, actor.querySelector('.sprite')),
+      x: 40, dir: stage ? stage.dir : 1, state: 'idle', base: 'idle', until: 0, sayUntil: 0,
+    };
+    fig.classList.toggle('nobounce', !pack.bounce);
+    applyZoom();
+  }
+
+  function applyZoom() {
+    if (!stage) return;
+    const z = Number($('zoom').value);
+    stage.fig.style.width = stage.fig.style.height = `${pack.size * z}px`;
+  }
+  $('zoom').onchange = applyZoom;
+
+  function say(text, ms) {
+    if (!text) return;
+    stage.bubble.textContent = text;
+    stage.bubble.hidden = false;
+    stage.sayUntil = performance.now() + ms;
+  }
+
+  function trigger(name) {
+    if (!stage) return;
+    const now = performance.now();
+    const special = pack.animations[name] && pack.animations[name].special;
+    stage.bubble.hidden = true;
+    stage.sayUntil = 0;
+    if (name === 'hop' || name === 'click') {
+      stage.state = name;
+      stage.until = now + ONE_SHOT_MS;
+      stage.fig.classList.add('hop');
+      setTimeout(() => stage.fig.classList.remove('hop'), ONE_SHOT_MS);
+      if (name === 'click') say('3시간 12분 남았어', 2000);
+    } else if (special) {
+      stage.state = name;
+      stage.until = now + special.ms;
+      setTimeout(() => { if (stage.state === name) say(special.text, special.ms - special.sayAt); }, special.sayAt);
+    } else {
+      stage.state = stage.base = name;
+      stage.until = 0;
+      const lines = { celebrate: pack.lines.celebrate, rest: pack.lines.rest, flee: '으악!', chase: '어흥!',
+        meet: pack.lines.meet.default || Object.values(pack.lines.meet)[0] };
+      if (lines[name]) say(lines[name], name === 'celebrate' || name === 'rest' ? 1e9 : 2000);
+    }
+    stage.fig.classList.toggle('party', stage.state === 'celebrate');
+    for (const b of document.querySelectorAll('#triggers button')) b.setAttribute('aria-pressed', String(b.dataset.trigger === name));
+  }
+
+  const setDir = (d) => {
+    if (!stage) return;
+    stage.dir = d;
+    $('dirLeft').setAttribute('aria-pressed', String(d < 0));
+    $('dirRight').setAttribute('aria-pressed', String(d > 0));
+  };
+  $('dirLeft').onclick = () => setDir(-1);
+  $('dirRight').onclick = () => setDir(1);
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min((now - last) / 1000, 0.1);
+    last = now;
+    for (const t of tiles) {
+      const facing = t.render(t.name, now, 1);
+      t.fig.style.transform = `scaleX(${facing})`;
+    }
+    if (stage && pack) {
+      if (stage.until && now > stage.until) {
+        stage.until = 0;
+        trigger(stage.base);
+      }
+      if (stage.sayUntil && now > stage.sayUntil) stage.bubble.hidden = true;
+      const special = pack.animations[stage.state] && pack.animations[stage.state].special;
+      const factor = MOVING[stage.state] || (special && special.moving ? 2.7 : 0);
+      if (factor && $('moveCheck').checked) {
+        const z = Number($('zoom').value);
+        const max = Math.max(0, $('stage').clientWidth - pack.size * z);
+        stage.x += stage.dir * pack.speed * factor * dt;
+        if (stage.x <= 0) { stage.x = 0; setDir(1); }
+        if (stage.x >= max) { stage.x = max; setDir(-1); }
+      }
+      actor.style.transform = `translateX(${stage.x}px)`;
+      const facing = stage.render(stage.state, now, stage.dir);
+      stage.fig.style.transform = `scaleX(${facing})`;
+      $('nowTrigger').textContent = stage.state;
+      $('nowAnim').textContent = resolve(stage.state, stage.dir);
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

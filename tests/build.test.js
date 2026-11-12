@@ -34,7 +34,7 @@ test('로컬 빌드에는 자동 업데이트 주소를 넣지 않는다', () =>
 
 test('스크립트는 문법 오류 없이 하나로 합쳐진다', () => {
   const { script } = build({ version: '1.3.0', baseUrl: null, repository: undefined });
-  for (const file of ['config.js', 'calc.js', 'content.js', 'mascot.js']) assert.match(script, new RegExp(`// ---- ${file} ----`));
+  for (const file of ['config.js', 'calc.js', 'content.js', 'builtin-characters.js', 'sprite.js', 'packs', 'mascot.js']) assert.match(script, new RegExp(`// ---- ${file} ----`));
   assert.doesNotThrow(() => new vm.Script(script));
 });
 

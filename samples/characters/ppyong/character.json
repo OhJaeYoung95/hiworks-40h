@@ -1,0 +1,58 @@
+{
+  "id": "ppyong",
+  "label": "뿅이",
+  "size": 84,
+  "speed": 58,
+  "pauseChance": 0.3,
+  "facing": "right",
+  "lines": {
+    "celebrate": "야호!",
+    "rest": "Zz",
+    "meet": {
+      "kong": "비켜비켜!",
+      "hodu": "같이 놀자!",
+      "mong": "느림보다!"
+    }
+  },
+  "animations": {
+    "idle": {
+      "frames": [
+        "idle.svg"
+      ]
+    },
+    "walk": {
+      "frames": [
+        "walk.svg"
+      ]
+    },
+    "hurry": {
+      "frames": [
+        "hurry.svg"
+      ]
+    },
+    "celebrate": {
+      "frames": [
+        "celebrate.svg"
+      ]
+    },
+    "zoom": {
+      "frames": [
+        "zoom.svg"
+      ],
+      "special": true,
+      "duration": 2200,
+      "say": "뿅!",
+      "sayAt": 100,
+      "moving": true
+    },
+    "carrot": {
+      "frames": [
+        "carrot.svg"
+      ],
+      "special": true,
+      "duration": 3000,
+      "say": "아삭아삭",
+      "sayAt": 200
+    }
+  }
+}

@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 -20 84 84" width="84" height="84" class="walk"><style>
+    .leg { transform-box: fill-box; transform-origin: top center; }
+    .walk .leg-a { animation: step .5s ease-in-out infinite; }
+    .walk .leg-b { animation: step .5s ease-in-out infinite reverse; }
+    .walk #body { animation: bob .25s ease-in-out infinite alternate; }
+    .fast .leg-a, .fast .leg-b, .skit-zoom .leg-a, .skit-zoom .leg-b { animation-duration: .2s; }
+    .fast #body, .skit-zoom #body { animation-duration: .1s; }
+    .idle #body { animation: breathe 1.6s ease-in-out infinite alternate; }
+    .prop, #confetti, #eyes-closed { display: none; }
+    #body { transform-box: fill-box; transform-origin: bottom center; }
+    .skit-weed #weed { display: inline; animation: weed-pop 3.2s linear infinite; }
+    .skit-weed #body { animation: tug 3.2s ease-in-out infinite; }
+    .skit-tear #tears { display: inline; }
+    .skit-tear #tears path { animation: tear-drop .9s ease-in infinite; }
+    .skit-tear #tears path + path { animation-delay: .45s; }
+    .skit-tear #body { animation: tremble .12s linear infinite alternate; }
+    .skit-eat #food, .skit-carrot #food { display: inline; transform-box: fill-box; transform-origin: center;
+      animation: munch 3s steps(4) infinite; }
+    .skit-eat #body, .skit-carrot #body { animation: bob .22s ease-in-out infinite alternate; }
+    .skit-coffee #mug { display: inline; transform-box: fill-box; transform-origin: left bottom;
+      animation: sip 3.4s ease-in-out infinite; }
+    .skit-nap #eyes-open { display: none; }
+    .skit-nap #eyes-closed { display: inline; }
+    .skit-nap #body { animation: breathe 1.8s ease-in-out infinite alternate; }
+    .skit-roar #body { animation: tremble .08s linear infinite alternate; }
+    .party #cert, .party #confetti { display: inline; }
+    .party #confetti rect { animation: confetti 1.3s linear infinite; }
+    .party #confetti rect:nth-child(2) { animation-delay: .35s; }
+    .party #confetti rect:nth-child(3) { animation-delay: .7s; }
+    .party #confetti rect:nth-child(4) { animation-delay: 1s; }
+    @keyframes step { from { transform: rotate(-24deg); } to { transform: rotate(24deg); } }
+    @keyframes bob { from { transform: translateY(0); } to { transform: translateY(-2px); } }
+    @keyframes breathe { from { transform: translateY(0); } to { transform: translateY(1px); } }
+    @keyframes hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-26px); } }
+    @keyframes tug { 0%, 100% { transform: rotate(0); } 15%, 45% { transform: rotate(9deg); }
+      30%, 60% { transform: rotate(4deg); } 72% { transform: rotate(13deg); } 80% { transform: rotate(-9deg); } }
+    @keyframes weed-pop { 0%, 72% { transform: translateY(0); opacity: 1; }
+      90% { transform: translateY(-16px); opacity: 1; } 100% { transform: translateY(-20px); opacity: 0; } }
+    @keyframes tear-drop { 0%, 65% { opacity: 1; } 0% { transform: translateY(0); }
+      100% { transform: translateY(11px); opacity: 0; } }
+    @keyframes tremble { from { transform: translateX(-.7px); } to { transform: translateX(.7px); } }
+    @keyframes munch { from { transform: scale(1); } to { transform: scale(0); } }
+    @keyframes sip { 0%, 100% { transform: rotate(0); } 25%, 45% { transform: rotate(-32deg); }
+      60%, 80% { transform: rotate(-32deg) translateY(-1px); } }
+    @keyframes confetti { from { transform: translateY(0) rotate(0); opacity: 1; }
+      to { transform: translateY(58px) rotate(200deg); opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+  </style>
+      
+    <g fill="#f3e3b8" stroke="#6b4a2b" stroke-width="2">
+      <rect class="leg leg-a" x="21" y="49" width="8" height="12" rx="4"/>
+      <rect class="leg leg-b" x="35" y="49" width="8" height="12" rx="4"/>
+    </g>
+      <g id="body">
+        <path d="M22 17 C14 12 6 16 4 26 C2 36 4 46 8 47 C12 48 13 40 14 32 C15 26 18 22 24 21 Z" fill="#fbf0cf" stroke="#4a3520" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M16 19 C10 21 7.5 30 8 42" fill="none" stroke="#f4b9c4" stroke-width="2.6" stroke-linecap="round"/>
+        <path d="M42 17 C50 12 58 16 60 26 C62 36 60 46 56 47 C52 48 51 40 50 32 C49 26 46 22 40 21 Z" fill="#fbf0cf" stroke="#4a3520" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M48 19 C54 21 56.5 30 56 42" fill="none" stroke="#f4b9c4" stroke-width="2.6" stroke-linecap="round"/>
+        <ellipse cx="32" cy="34" rx="22" ry="20" fill="#fdf3d6" stroke="#4a3520" stroke-width="2"/>
+        <ellipse cx="24" cy="23" rx="5" ry="2.6" fill="#fff" opacity=".7"/>
+        <ellipse cx="14" cy="45" rx="3" ry="4" fill="#fdf3d6" stroke="#4a3520" stroke-width="1.8"/>
+        <ellipse cx="50" cy="45" rx="3" ry="4" fill="#fdf3d6" stroke="#4a3520" stroke-width="1.8"/>
+        <g id="eyes-open">
+          <circle cx="25" cy="33" r="3" fill="#3d2a17"/>
+          <circle cx="39" cy="33" r="3" fill="#3d2a17"/>
+          <circle cx="26" cy="32" r="1.1" fill="#fff"/>
+          <circle cx="40" cy="32" r="1.1" fill="#fff"/>
+        </g>
+        <g id="eyes-closed" fill="none" stroke="#3d2a17" stroke-width="1.8" stroke-linecap="round">
+          <path d="M22 33.5 Q25 31 28 33.5"/>
+          <path d="M36 33.5 Q39 31 42 33.5"/>
+        </g>
+        <circle cx="19" cy="39" r="3.2" fill="#f7a8b4" opacity=".85"/>
+        <circle cx="45" cy="39" r="3.2" fill="#f7a8b4" opacity=".85"/>
+        <ellipse cx="32" cy="37" rx="1.8" ry="1.3" fill="#e9839a"/>
+        <path d="M32 38.3 V40 M29.5 41 Q32 43 34.5 41" fill="none" stroke="#3d2a17" stroke-width="1.4" stroke-linecap="round"/>
+      </g>
+      <g id="food" class="prop">
+        <circle cx="50" cy="45" r="6" fill="#d9a060" stroke="#6b4a2b" stroke-width="1.5"/>
+        <circle cx="48" cy="43" r="1.1" fill="#5a3a1e"/>
+        <circle cx="52" cy="46" r="1.1" fill="#5a3a1e"/>
+        <circle cx="49" cy="48" r="1" fill="#5a3a1e"/>
+      </g>
+    <g id="confetti">
+      <rect x="4" y="-8" width="4" height="4" fill="#f2a58e"/>
+      <rect x="20" y="-14" width="4" height="4" fill="#8cc152"/>
+      <rect x="40" y="-10" width="4" height="4" fill="#8fd0f2"/>
+      <rect x="56" y="-16" width="4" height="4" fill="#f4c542"/>
+    </g></svg>

@@ -1,0 +1,59 @@
+{
+  "id": "bora",
+  "label": "보라괴물",
+  "size": 84,
+  "speed": 34,
+  "pauseChance": 0.5,
+  "chaser": true,
+  "facing": "right",
+  "lines": {
+    "celebrate": "축하한다 크앙!",
+    "rest": "Zz",
+    "meet": {}
+  },
+  "animations": {
+    "idle": {
+      "frames": [
+        "idle.svg"
+      ]
+    },
+    "walk": {
+      "frames": [
+        "walk.svg"
+      ]
+    },
+    "hurry": {
+      "frames": [
+        "hurry.svg"
+      ]
+    },
+    "celebrate": {
+      "frames": [
+        "celebrate.svg"
+      ]
+    },
+    "rest": {
+      "frames": [
+        "rest.svg"
+      ]
+    },
+    "roar": {
+      "frames": [
+        "roar.svg"
+      ],
+      "special": true,
+      "duration": 2000,
+      "say": "크아앙!",
+      "sayAt": 200
+    },
+    "nap": {
+      "frames": [
+        "nap.svg"
+      ],
+      "special": true,
+      "duration": 3600,
+      "say": "Zz",
+      "sayAt": 300
+    }
+  }
+}

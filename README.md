@@ -14,10 +14,16 @@
 | `src/config.js` | **회사 근무 규칙** (주 근무시간, 점심시간, 금요일 퇴근 시각). 규칙이 바뀌면 여기만 고칩니다 |
 | `src/calc.js` | 화면 글자 읽기와 퇴근 시각 계산 |
 | `src/content.js` | 오른쪽 아래 패널 |
-| `src/mascot.js` | 캐릭터와 대사 |
+| `src/mascot.js` | 캐릭터 엔진: 상황을 보고 애니메이션 트리거를 정합니다 |
+| `src/builtin-characters.js` | 기본 캐릭터 다섯(SVG 그림·대사) |
+| `src/sprite.js` | 캐릭터 팩 재생기 (하이웍스 화면과 작업실이 같이 씀) |
+| `characters/` | **캐릭터 팩**. 규격은 [characters/README.md](characters/README.md) |
+| `samples/characters/` | 기본 캐릭터를 팩 규격으로 뽑은 샘플 (`npm run samples`로 다시 만듦) |
 | `src/manifest.json` | 이름, 설명, 실행 주소, 버전의 "주.부" 부분. 로컬 테스트용 확장 프로그램 설정도 겸합니다 |
-| `scripts/build-userscript.js` | `src/`를 Tampermonkey 스크립트 하나와 안내 페이지로 만듭니다 |
+| `scripts/build-userscript.js` | `src/`와 `characters/`를 Tampermonkey 스크립트 하나로, 안내 페이지·작업실과 함께 만듭니다 |
+| `scripts/packs.js` | 캐릭터 팩 규격 검사 (빌드와 작업실이 같이 씀) |
 | `site/index.html` | 동료용 설치 안내 페이지 원본 |
+| `site/studio.html` | 캐릭터 팩 작업실. 배포 후 `…/hiworks-40h/studio.html` |
 | `.github/workflows/deploy.yml` | 자동 배포 설정 |
 | `tests/` | 계산·빌드 테스트와 동작 확인용 모의 페이지 |
 
