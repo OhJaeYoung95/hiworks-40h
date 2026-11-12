@@ -1,0 +1,140 @@
+const assert = require('node:assert');
+const test = require('node:test');
+const { parsePage, evaluate, secToTime, timeToSec } = require('../src/calc.js');
+
+// 스크린샷(2026-11-06 금요일 16:02:20)의 화면 글자
+const screen = ({ worked = '31시간 45분 57초', leave = '0분 0초', clockIn = '10:28:05', clockOut = '00:00:00' } = {}) => `
+11월
+6
+Friday
+근무일
+16 : 02 : 20
+근무중
+출근하기
+${clockIn}
+퇴근하기
+${clockOut}
+업무 회의 외근 출장
+${clockIn === '00:00:00' ? '' : `${clockIn}\n출근\n출근`}
+근무체크수정
+주간 근무현황
+2026년 11월 02일 ~ 08일
+이번 주
+2 (월)
+출근
+10:56
+퇴근
+19:44
+총 7시간 48분 39초
+3 (화)
+총 8시간 42분 57초
+4 (수)
+총 8시간 1분 54초
+5 (목)
+총 7시간 12분 27초
+6 (금)
+출근
+10:28
+주간 합계
+계획 0분 0초
+휴가 ${leave}
+실근무
+총: ${worked}
+야간: 0분 0초
+`;
+
+const friday = (t) => new Date(`2026-11-06T${t}`);
+const run = (opts, at) => evaluate(parsePage(screen(opts)), friday(at));
+
+test('스크린샷 값: 19:42:08에 40시간 달성', () => {
+  const page = parsePage(screen());
+  assert.deepStrictEqual(page.missing, []);
+  assert.strictEqual(page.worked, timeToSec('31:45:57'));
+  assert.strictEqual(page.clockIn, timeToSec('10:28:05'));
+  assert.strictEqual(page.clockOut, null);
+
+  const r = evaluate(page, friday('16:02:20'));
+  assert.strictEqual(r.state, 'working');
+  assert.strictEqual(secToTime(r.leaveAt), '19:42:08');
+  assert.strictEqual(r.earlyLeave, false);
+  // 31:45:57 + (10:28:05~16:02:20 - 점심 1시간 = 4:34:15)
+  assert.strictEqual(secToTime(r.total), '36:20:12');
+  assert.strictEqual(secToTime(r.remaining), '03:39:48');
+});
+
+test('월요일 실제 기록으로 점심 차감 규칙 확인 (10:56~19:44 = 7시간 48분)', () => {
+  const { workedBetween } = require('../src/calc.js');
+  assert.strictEqual(secToTime(workedBetween(timeToSec('10:56:00'), timeToSec('19:44:00'))), '07:48:00');
+});
+
+test('40시간을 17시 전에 채워도 17시 퇴근', () => {
+  const r = run({ worked: '35시간', clockIn: '09:00:00' }, '10:00:00');
+  assert.strictEqual(secToTime(r.reachAt), '15:00:00');
+  assert.strictEqual(secToTime(r.leaveAt), '17:00:00');
+  assert.strictEqual(r.earlyLeave, true);
+});
+
+test('이미 40시간을 채웠으면 17시 퇴근', () => {
+  assert.strictEqual(secToTime(run({ worked: '41시간', clockIn: '10:00:00' }, '11:00:00').leaveAt), '17:00:00');
+});
+
+test('13시 정각에 끝나면 점심을 더하지 않음', () => {
+  assert.strictEqual(secToTime(run({ worked: '37시간', clockIn: '10:00:00' }, '10:30:00').reachAt), '13:00:00');
+});
+
+test('점심시간 중 출근이면 14시부터 계산', () => {
+  assert.strictEqual(secToTime(run({ worked: '34시간', clockIn: '13:30:00' }, '13:40:00').reachAt), '20:00:00');
+});
+
+test('14시 이후 출근이면 점심 차감 없음', () => {
+  assert.strictEqual(secToTime(run({ worked: '34시간', clockIn: '14:30:00' }, '15:00:00').reachAt), '20:30:00');
+});
+
+test('휴가 시간은 40시간에 포함', () => {
+  assert.strictEqual(secToTime(run({ worked: '24시간', leave: '8시간', clockIn: '10:00:00' }, '11:00:00').reachAt), '19:00:00');
+});
+
+test('출근 전이면 지금 출근 기준으로 계산', () => {
+  const r = run({ clockIn: '00:00:00' }, '09:00:00');
+  assert.strictEqual(r.state, 'not-started');
+  assert.strictEqual(secToTime(r.leaveAt), '18:14:03');
+});
+
+test('퇴근 후 부족/달성 판정', () => {
+  assert.strictEqual(run({ worked: '39시간', clockOut: '18:00:00' }, '18:01:00').remaining, 3600);
+  assert.ok(run({ worked: '40시간 10분', clockOut: '18:00:00' }, '18:01:00').remaining <= 0);
+});
+
+test('다른 주를 보고 있으면 계산하지 않음', () => {
+  const r = evaluate(parsePage(screen()), new Date('2026-11-13T10:00:00'));
+  assert.strictEqual(r.state, 'other-week');
+});
+
+test('월을 넘기는 주도 인식', () => {
+  const text = screen().replace('2026년 11월 02일 ~ 08일', '2026년 11월 30일 ~ 12월 06일');
+  assert.strictEqual(evaluate(parsePage(text), new Date('2026-12-04T10:00:00')).isFriday, true);
+});
+
+test('합계 영역이 없으면 요일별 합계로 대체', () => {
+  const text = screen().split('주간 합계')[0];
+  assert.strictEqual(parsePage(text).worked, timeToSec('31:45:57'));
+});
+
+test('캐릭터 상태는 퇴근 시각을 따른다', () => {
+  const { mascotMood } = require('../src/calc.js');
+  assert.strictEqual(mascotMood(undefined), 'normal');
+  assert.strictEqual(mascotMood(run({}, '16:02:20')), 'normal');
+  assert.strictEqual(mascotMood(run({}, '18:42:07')), 'normal');
+  assert.strictEqual(mascotMood(run({}, '18:42:08')), 'hurry');
+  assert.strictEqual(mascotMood(run({}, '19:42:07')), 'hurry');
+  assert.strictEqual(mascotMood(run({}, '19:42:08')), 'celebrate');
+  assert.strictEqual(mascotMood(run({ clockOut: '19:50:00' }, '19:51:00')), 'rest');
+  // 금요일이 아니면 서두르지 않는다
+  assert.strictEqual(mascotMood(evaluate(parsePage(screen()), new Date('2026-11-05T19:00:00'))), 'normal');
+});
+
+test('화면을 못 읽으면 누락 항목을 알려줌', () => {
+  const r = evaluate(parsePage('로딩 중'), friday('10:00:00'));
+  assert.strictEqual(r.state, 'unreadable');
+  assert.strictEqual(r.missing.length, 3);
+});

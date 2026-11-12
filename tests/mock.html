@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>패널 확인용 모의 페이지</title>
+<body style="font-family: sans-serif; white-space: pre-line">출근하기
+10:28:05
+퇴근하기
+00:00:00
+2026년 11월 02일 ~ 08일
+주간 합계
+휴가 0분 0초
+실근무
+총: 31시간 45분 57초
+<script>
+  // npm run mock 후 http://localhost:4173/tests/mock.html 로 연다.
+  // 기본은 스크린샷 시점(16:02:20). ?t=19:00:00 으로 시각을 바꿔 상태별 동작을 본다.
+  // ?r=0.1 은 난수를 고정해 캐릭터 시작 위치를 정한다.
+  const params = new URLSearchParams(location.search);
+  if (params.has('r')) Math.random = () => Number(params.get('r'));
+  const RealDate = Date;
+  const [hh, mm, ss] = (params.get('t') || '16:02:20').split(':').map(Number);
+  const fixed = new RealDate(2026, 10, 6, hh, mm, ss).getTime();
+  window.Date = class extends RealDate {
+    constructor(...a) { a.length ? super(...a) : super(fixed); }
+    static now() { return fixed; }
+  };
+</script>
+<script>
+  // ?build=1 이면 빌드된 Tampermonkey 스크립트를, 아니면 src/ 파일을 순서대로 불러온다.
+  const files = params.has('build')
+    ? ['../dist/hiworks-40h.user.js']
+    : ['config.js', 'calc.js', 'content.js', 'mascot.js'].map((f) => `../src/${f}`);
+  for (const src of files) {
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = false; // 순서대로 실행
+    document.body.appendChild(s);
+  }
+</script>
+</body>
