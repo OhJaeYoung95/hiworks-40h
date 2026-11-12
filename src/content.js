@@ -23,7 +23,7 @@
         box-shadow: 0 2px 8px rgba(0,0,0,.15); color: #222; font: 600 13px 'Malgun Gothic', sans-serif; }
     </style>
     <div class="panel" id="panel">
-      <div class="head"><span id="title"></span><span><button id="pet" title="캐릭터 켜기/끄기">🐾</button><button id="min" title="접기">–</button></span></div>
+      <div class="head"><span id="title"></span><span><button id="pet" title="캐릭터 켜기/끄기">🐾</button><button id="pic" title="몽실이를 내 그림으로 바꾸기 (이 브라우저에만 저장)">🖼</button><button id="min" title="접기">–</button></span></div>
       <div class="main" id="main"></div>
       <div class="note" id="note"></div>
       <div id="rows"></div>
@@ -38,6 +38,7 @@
   $('min').onclick = () => setCollapsed(true);
   $('pill').onclick = () => setCollapsed(false);
   $('pet').onclick = () => globalThis.HW40.toggleMascot();
+  $('pic').onclick = () => globalThis.HW40.pickCustomImage();
 
   const COLOR = { wait: '#8fa3c9', done: '#7fa650', warn: '#d9822b' };
 

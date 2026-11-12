@@ -11,6 +11,10 @@
   const CHASE_GIVE_UP_MS = 7000;
   const FLEE_MS = 2600;
   const STORAGE_KEY = 'hw40-mascot-off';
+  // 사용자가 고른 그림. 이 브라우저의 localStorage에만 저장되고 어디로도 보내지 않는다.
+  const CUSTOM_KEY = 'hw40-custom-image';
+  const CUSTOM_TARGET = 'mong';
+  const CUSTOM_MAX_PX = 160;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const STYLE = `
@@ -328,9 +332,55 @@
     }
   }
 
+  function readCustom() {
+    try {
+      return localStorage.getItem(CUSTOM_KEY);
+    } catch {
+      return null;
+    }
+  }
+  function writeCustom(url) {
+    try {
+      if (url) localStorage.setItem(CUSTOM_KEY, url);
+      else localStorage.removeItem(CUSTOM_KEY);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  const customArt = (url) => `
+    <g id="body"><image href="${url}" x="-8" y="-14" width="80" height="78" preserveAspectRatio="xMidYMax meet"/></g>`;
+
+  // 고른 그림을 작게 줄여 PNG 데이터 URL로 만든다.
+  function shrinkImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const src = URL.createObjectURL(file);
+      img.onload = () => {
+        const scale = Math.min(1, CUSTOM_MAX_PX / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(src);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(src);
+        reject(new Error('image load failed'));
+      };
+      img.src = src;
+    });
+  }
+
   const maxX = () => Math.max(0, window.innerWidth - WIDTH);
   // 패널에 가리지 않고 멈춰 있을 수 있는 오른쪽 한계
   const clearMaxX = () => Math.max(0, window.innerWidth - WIDTH - PANEL_CLEARANCE);
+
+  const artFor = (def) => {
+    const url = def.id === CUSTOM_TARGET ? readCustom() : null;
+    return url ? customArt(url) : def.art;
+  };
 
   function createMascot(def, index, count) {
     // 패널보다 낮은 층에 두어 패널을 가리지 않게 한다. 빈 영역 클릭은 페이지로 통과시킨다.
@@ -343,7 +393,7 @@
       <div id="bubble" hidden></div>
       <div id="flip">
         <svg viewBox="0 0 64 64" width="${WIDTH}" height="${WIDTH}" role="img" aria-label="${def.label}">
-          ${def.art}${CONFETTI}
+          ${artFor(def)}${CONFETTI}
         </svg>
       </div>`;
     const flip = shadow.getElementById('flip');
@@ -386,6 +436,10 @@
       bubble.style.left = leftAligned ? `${m.bubbleOffset}px` : 'auto';
       bubble.style.right = leftAligned ? 'auto' : `${m.bubbleOffset}px`;
     }
+
+    m.redraw = () => {
+      svg.innerHTML = artFor(def) + CONFETTI;
+    };
 
     m.say = (text, ms, align = null, offset = 0) => {
       m.bubbleAlign = align;
@@ -560,6 +614,36 @@
     off = !off;
     applyOff();
     writeOff(off);
+  };
+
+  api.pickCustomImage = () => {
+    const target = mascots.find((m) => m.id === CUSTOM_TARGET);
+    const resetPrompt = '원래 몽실이로 되돌릴까요? 취소를 누르면 새 그림을 고릅니다.';
+    if (readCustom() && window.confirm(resetPrompt)) {
+      writeCustom(null);
+      target.redraw();
+      return;
+    }
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      try {
+        const url = await shrinkImage(file);
+        if (!writeCustom(url)) {
+          window.alert('브라우저 저장소를 쓸 수 없어 그림을 저장하지 못했어요.');
+          return;
+        }
+        target.redraw();
+        target.say('짠!', 2000);
+        target.hop();
+      } catch {
+        window.alert('그림을 읽지 못했어요. PNG나 JPG 파일을 골라 주세요.');
+      }
+    };
+    input.click();
   };
 
   let nextMeetAt = 0;
