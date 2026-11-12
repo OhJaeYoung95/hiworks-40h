@@ -7,6 +7,9 @@
   const HURRY_FACTOR = 2.7;
   const PANEL_CLEARANCE = 300; // 패널 폭 + 여백 + 말풍선 여유
   const MEET_COOLDOWN_MS = 25000;
+  const CHASE_COOLDOWN_MS = 40000;
+  const CHASE_GIVE_UP_MS = 7000;
+  const FLEE_MS = 2600;
   const STORAGE_KEY = 'hw40-mascot-off';
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -41,6 +44,7 @@
     .skit-nap #eyes-open { display: none; }
     .skit-nap #eyes-closed { display: inline; }
     .skit-nap #body { animation: breathe 1.8s ease-in-out infinite alternate; }
+    .skit-roar #body { animation: tremble .08s linear infinite alternate; }
     .party #cert, .party #confetti { display: inline; }
     .party #confetti rect { animation: confetti 1.3s linear infinite; }
     .party #confetti rect:nth-child(2) { animation-delay: .35s; }
@@ -258,8 +262,45 @@
       </g>`,
   };
 
+  // 뿔 하나 달린 보라색 털뭉치 괴물. 가끔 친구들을 쫓아다니며 놀래킨다.
+  const BORA = {
+    id: 'bora',
+    label: '보라괴물',
+    speed: 34,
+    pauseChance: 0.5,
+    chaser: true,
+    partyLine: '축하한다 크앙!',
+    restLine: 'Zz',
+    skits: {
+      roar: { ms: 2000, text: '크아앙!', sayAt: 200 },
+      nap: { ms: 3600, text: 'Zz', sayAt: 300 },
+    },
+    art: `
+      ${legs('#7a5bb8')}
+      <g id="body">
+        <path d="M30 13 L33 2 L37 13 Z" fill="#f3e6c4" stroke="#3a2456" stroke-width="1.8" stroke-linejoin="round"/>
+        <path d="M11 30 C10 18 20 12 32 12 C44 12 54 18 53 30 L56 34 L53 37 L55 42 L51 45 C48 52 40 54 32 54 C24 54 16 52 13 45 L9 42 L11 37 L8 34 Z" fill="#9b7fd4" stroke="#3a2456" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M22 14 L24 9 L27 13 M40 13 L43 9 L44 14" fill="#9b7fd4" stroke="#3a2456" stroke-width="1.6" stroke-linejoin="round"/>
+        <ellipse cx="24" cy="21" rx="5" ry="2.5" fill="#fff" opacity=".35"/>
+        <g id="eyes-open">
+          <circle cx="25" cy="31" r="4.6" fill="#fff" stroke="#3a2456" stroke-width="1.4"/>
+          <circle cx="41" cy="31" r="4.6" fill="#fff" stroke="#3a2456" stroke-width="1.4"/>
+          <circle cx="26" cy="31.5" r="2.2" fill="#2a1a3d"/>
+          <circle cx="42" cy="31.5" r="2.2" fill="#2a1a3d"/>
+        </g>
+        <g id="eyes-closed" fill="none" stroke="#2a1a3d" stroke-width="1.8" stroke-linecap="round">
+          <path d="M21 32 Q25 35 29 32"/>
+          <path d="M37 32 Q41 35 45 32"/>
+        </g>
+        <path d="M24 40 Q33 46 42 40" fill="#5a2d4f" stroke="#2a1a3d" stroke-width="1.6" stroke-linejoin="round"/>
+        <path d="M27 41 L28.5 44 L30 42 M36 42 L37.5 44 L39 41" fill="#fff" stroke="#2a1a3d" stroke-width=".8" stroke-linejoin="round"/>
+        <path d="M11 38 L4 32 M53 38 L60 32" stroke="#3a2456" stroke-width="5" stroke-linecap="round"/>
+        <path d="M11 38 L4 32 M53 38 L60 32" stroke="#9b7fd4" stroke-width="2.6" stroke-linecap="round"/>
+      </g>`,
+  };
+
   // 왼쪽부터의 축하 자리 순서. 말풍선이 긴 콩떡이가 오른쪽을 쓴다.
-  const CHARACTERS = [PPYONG, HODU, MONG, KONG];
+  const CHARACTERS = [BORA, PPYONG, HODU, MONG, KONG];
 
   // 둘이 마주쳤을 때 대사 (id 알파벳순 키)
   const MEET_LINES = {
@@ -311,6 +352,7 @@
 
     const m = {
       id: def.id,
+      chaser: Boolean(def.chaser),
       host,
       x: (maxX() * (index + Math.random())) / count,
       dir: Math.random() < 0.5 ? 1 : -1,
@@ -321,6 +363,9 @@
       bubbleAlign: null,
       bubbleOffset: 0,
       hopping: false,
+      fleeUntil: 0,
+      chase: null,
+      chaseUntil: 0,
     };
 
     m.hop = () => {
@@ -365,7 +410,31 @@
       m.actionUntil = now + ms;
     };
 
+    // 괴물에게 쫓길 때. 반대쪽으로 빠르게 도망간다.
+    m.flee = (from, now) => {
+      m.skit = null;
+      m.action = 'walk';
+      m.actionUntil = now + FLEE_MS;
+      m.fleeUntil = now + FLEE_MS;
+      m.dir = m.x < from.x ? -1 : 1;
+      if ((m.dir < 0 && m.x <= 0) || (m.dir > 0 && m.x >= maxX())) m.dir = -m.dir;
+      m.say('으악!', 1500);
+      m.hop();
+    };
+
+    m.startChase = (target, now) => {
+      m.skit = null;
+      m.action = 'walk';
+      m.chase = target;
+      m.chaseUntil = now + CHASE_GIVE_UP_MS;
+      m.say('어흥!', 1500);
+    };
+
     function nextAction(now) {
+      if (m.chase) {
+        m.actionUntil = now + 500;
+        return;
+      }
       m.skit = null;
       if (m.action === 'walk' && Math.random() < def.pauseChance) {
         if (m.x <= clearMaxX() && Math.random() < 0.6) {
@@ -399,6 +468,10 @@
       let speed = def.speed;
       let target = null;
 
+      if (mood !== 'normal') {
+        m.chase = null;
+        m.fleeUntil = 0;
+      }
       if (mood !== 'normal' && m.skit) {
         m.skit = null;
         m.action = 'walk';
@@ -413,6 +486,27 @@
         const skitMoves = m.skit && def.skits[m.skit].moving;
         moving = m.action === 'walk' || Boolean(skitMoves);
         if (skitMoves) speed = def.speed * HURRY_FACTOR;
+        if (now < m.fleeUntil) {
+          moving = true;
+          speed = def.speed * HURRY_FACTOR;
+        }
+        if (m.chase) {
+          if (now > m.chaseUntil || m.chase.host.hidden) {
+            m.chase = null;
+            m.say('칫…', 1500);
+            m.pause(1500, now);
+          } else if (Math.abs(m.chase.x - m.x) < WIDTH * 0.7) {
+            m.chase.flee(m, now);
+            m.chase = null;
+            m.say('헤헤', 1500);
+            m.pause(1800, now);
+            moving = false;
+          } else {
+            moving = true;
+            speed = def.speed * 2;
+            target = m.chase.x;
+          }
+        }
       } else if (Math.abs(m.x - slot()) > 1) {
         moving = true;
         speed = def.speed * HURRY_FACTOR;
@@ -476,6 +570,7 @@
         const [a, b] = [mascots[i], mascots[j]];
         if (a.skit || b.skit || Math.abs(a.x - b.x) > WIDTH * 0.8) continue;
         const lines = MEET_LINES[[a.id, b.id].sort().join('+')];
+        if (!lines) continue;
         const [left, right] = a.x <= b.x ? [a, b] : [b, a];
         // 둘 사이 가운데를 기준으로 말풍선을 바깥쪽으로 펼쳐 겹치지 않게 한다.
         const offset = WIDTH / 2 + 2 - (right.x - left.x) / 2;
@@ -490,13 +585,28 @@
     }
   }
 
+  let nextChaseAt = performance.now() + 15000;
+  function checkChase(now) {
+    if (now < nextChaseAt) return;
+    nextChaseAt = now + CHASE_COOLDOWN_MS * (0.7 + Math.random() * 0.6);
+    for (const chaser of mascots.filter((m) => m.chaser && !m.chase)) {
+      const others = mascots.filter((m) => !m.chaser && now >= m.fleeUntil);
+      if (!others.length) return;
+      const prey = others.reduce((a, b) => (Math.abs(a.x - chaser.x) <= Math.abs(b.x - chaser.x) ? a : b));
+      chaser.startChase(prey, now);
+    }
+  }
+
   let last = 0;
   function frame(now) {
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
     if (!off) {
       const mood = mascotMood(api.latest);
-      if (mood === 'normal') checkMeetings(now);
+      if (mood === 'normal') {
+        checkMeetings(now);
+        checkChase(now);
+      }
       mascots.forEach((m) => m.update(now, dt, mood));
     }
     requestAnimationFrame(frame);
