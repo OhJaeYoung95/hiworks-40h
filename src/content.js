@@ -18,6 +18,7 @@
       button { border: 0; background: none; cursor: pointer; color: #667; font-size: 14px; padding: 0 2px; }
       .main { font-size: 26px; font-weight: 700; margin: 2px 0; font-variant-numeric: tabular-nums; }
       .note { font-weight: 600; margin-bottom: 8px; }
+      .hint { color: #889; font-size: 11px; margin-top: 4px; }
       .row { display: flex; justify-content: space-between; color: #556; font-variant-numeric: tabular-nums; }
       .pill { padding: 6px 12px; background: #fff; border: 1px solid #d5dbe5; border-radius: 16px;
         box-shadow: 0 2px 8px rgba(0,0,0,.15); color: #222; font: 600 13px 'Malgun Gothic', sans-serif; }
@@ -47,6 +48,7 @@
       <div class="main" id="main"></div>
       <div class="note" id="note"></div>
       <div id="rows"></div>
+      <div class="hint" id="hint" hidden></div>
     </div>
     <button class="pill" id="pill" hidden></button>`;
 
@@ -140,7 +142,9 @@
 
   const COLOR = { wait: '#8fa3c9', done: '#7fa650', warn: '#d9822b' };
 
-  function view({ title, main, note, rows = [], accent = COLOR.wait, pill }) {
+  function view({ title, main, note, rows = [], accent = COLOR.wait, pill, hint }) {
+    $('hint').textContent = hint || '';
+    $('hint').hidden = !hint;
     $('title').textContent = title;
     $('main').textContent = main || '';
     $('main').hidden = !main;
@@ -159,6 +163,19 @@
       })
     );
     $('pill').textContent = pill || title;
+  }
+
+  // 월~목: 금요일 예상 퇴근 줄과 그 가정
+  const hhmm = (sec) => secToTime(sec).slice(0, 5);
+  function withFriday(r, rows) {
+    if (!r.friday) return { rows };
+    const f = r.friday;
+    return {
+      rows: [...rows, ['금요일 예상 퇴근', hhmm(f.leaveAt)]],
+      hint: f.need
+        ? `목요일까지 하루 ${Math.round(f.daily / 3600)}시간 · 금요일 ${hhmm(f.start)} 출근 기준 (금요일 ${formatDuration(f.need)} 근무)`
+        : `목요일까지 하루 ${Math.round(f.daily / 3600)}시간이면 40시간을 다 채워요`,
+    };
   }
 
   function render(r) {
@@ -183,7 +200,7 @@
       view({
         title: '오늘 퇴근 완료',
         note: ok ? '이번 주 40시간 달성' : `40시간까지 ${formatDuration(r.remaining)} 부족`,
-        rows,
+        ...(ok ? { rows } : withFriday(r, rows)),
         accent: ok ? COLOR.done : COLOR.warn,
       });
       return;
@@ -193,13 +210,13 @@
       view({
         title: r.isFriday ? '지금 출근하면 퇴근 가능' : '아직 출근 전',
         main: r.isFriday ? secToTime(r.leaveAt) : '',
-        rows,
+        ...withFriday(r, rows),
       });
       return;
     }
 
     if (!r.isFriday) {
-      view({ title: '이번 주 근무 현황', main: formatDuration(r.remaining), note: '40시간까지 남음', rows, pill: `${formatDuration(r.remaining)} 남음` });
+      view({ title: '이번 주 근무 현황', main: formatDuration(r.remaining), note: '40시간까지 남음', ...withFriday(r, rows), pill: `${formatDuration(r.remaining)} 남음` });
       return;
     }
 

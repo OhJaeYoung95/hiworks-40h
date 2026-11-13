@@ -18,7 +18,8 @@
   if (params.has('r')) Math.random = () => Number(params.get('r'));
   const RealDate = Date;
   const [hh, mm, ss] = (params.get('t') || '16:02:20').split(':').map(Number);
-  const fixed = new RealDate(2026, 10, 6, hh, mm, ss).getTime();
+  // ?d=4 처럼 날짜(11월 2~8일)를 바꿔 월~목 화면도 본다.
+  const fixed = new RealDate(2026, 10, Number(params.get('d') || 6), hh, mm, ss).getTime();
   window.Date = class extends RealDate {
     constructor(...a) { a.length ? super(...a) : super(fixed); }
     static now() { return fixed; }

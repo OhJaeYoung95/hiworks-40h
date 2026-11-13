@@ -138,3 +138,96 @@ test('화면을 못 읽으면 누락 항목을 알려줌', () => {
   assert.strictEqual(r.state, 'unreadable');
   assert.strictEqual(r.missing.length, 3);
 });
+
+test('월~목에는 목요일까지 하루 8시간, 오늘 출근 시각 기준으로 금요일 예상 퇴근을 낸다', () => {
+  const page = (worked, clockIn, clockOut = null) => ({
+    week: { start: new Date(2026, 10, 2), end: new Date(2026, 10, 8) },
+    worked,
+    leave: 0,
+    clockIn: clockIn && timeToSec(clockIn),
+    clockOut: clockOut && timeToSec(clockOut),
+    missing: [],
+  });
+  const H = 3600;
+
+  // 화요일 15시, 월요일 8시간 + 오늘 10시 출근: 화·수·목 8시간씩이면 금요일 8시간 → 10:00 출근 19:00 퇴근
+  const tue = evaluate(page(8 * H, '10:00:00'), new Date(2026, 10, 3, 15, 0, 0));
+  assert.strictEqual(tue.friday.need, 8 * H);
+  assert.strictEqual(secToTime(tue.friday.leaveAt), '19:00:00');
+
+  // 목요일 퇴근 후 이미 36시간: 금요일 4시간 → 9:30 출근이면 14:30이지만 17:00이 가장 빠르다
+  const thu = evaluate(page(36 * H, '09:30:00', '18:30:00'), new Date(2026, 10, 5, 19, 0, 0));
+  assert.strictEqual(secToTime(thu.friday.leaveAt), '17:00:00');
+
+  // 출근 전이면 기본 출근 시각(09:00)으로 본다. 수요일 아침, 지금까지 14시간: 수·목 16시간 → 금요일 10시간
+  const wed = evaluate(page(14 * H, null), new Date(2026, 10, 4, 8, 0, 0));
+  assert.strictEqual(wed.friday.start, timeToSec('09:00:00'));
+  assert.strictEqual(secToTime(wed.friday.leaveAt), '20:00:00');
+
+  // 금요일과 주말에는 예상 줄을 내지 않는다
+  assert.strictEqual(evaluate(page(32 * H, '10:00:00'), new Date(2026, 10, 6, 11, 0, 0)).friday, null);
+  assert.strictEqual(evaluate(page(40 * H, null), new Date(2026, 10, 7, 11, 0, 0)).friday, null);
+});
+
+test('9시 전에 출근해도 9시부터 센다 (사이트 합계에서 일찍 온 시간을 뺀다)', () => {
+  // 2026-11-13(금) 실제 화면: 월~목 08:55~18:00(사이트 합계 하루 8시간 4분대), 금요일 08:55:27 출근
+  const text = `출근하기
+08:55:27
+퇴근하기
+00:00:00
+주간 근무현황
+2026년 11월 09일 ~ 15일
+9 (월)
+출근
+08:55
+퇴근
+18:00
+총 8시간 4분 33초
+10 (화)
+출근
+08:55
+퇴근
+18:00
+총 8시간 4분 13초
+11 (수)
+출근
+08:52
+퇴근
+18:00
+총 8시간 7분 27초
+12 (목)
+출근
+08:56
+퇴근
+18:00
+총 8시간 3분 24초
+13 (금)
+출근
+08:55
+14 (토)
+15 (일)
+주간 합계
+계획 0분 0초
+휴가 0분 0초
+실근무
+총: 32시간 19분 37초
+야간: 0분 0초
+`;
+  const page = parsePage(text);
+  // 5분 + 5분 + 8분 + 4분 = 22분을 뺀다
+  assert.strictEqual(page.early, 22 * 60);
+  assert.strictEqual(secToTime(page.worked), '31:57:37');
+  const r = evaluate(page, new Date('2026-11-13T14:20:00'));
+  // 9시부터 8시간 2분 23초 + 점심 1시간
+  assert.strictEqual(secToTime(r.leaveAt), '18:02:23');
+  assert.strictEqual(secToTime(r.total), '36:17:37');
+
+  // 출근 전에도 9시 전이면 9시부터 센다
+  const before = evaluate(parsePage(text.replace('08:55:27', '00:00:00')), new Date('2026-11-13T08:30:00'));
+  assert.strictEqual(secToTime(before.leaveAt), '18:02:23');
+});
+
+test('9시 이후 출근과 요일 칸이 없는 화면은 그대로 계산한다', () => {
+  const page = parsePage(screen());
+  assert.strictEqual(page.early, 0, '월요일 10:56 출근은 뺄 시간이 없다');
+});

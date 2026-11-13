@@ -8,9 +8,11 @@
   };
   const RULES = {
     weeklyTarget: CONFIG.weeklyHours * H,
+    workStart: clock(CONFIG.workStart),
     lunchStart: clock(CONFIG.lunchStart),
     lunchEnd: clock(CONFIG.lunchEnd),
     fridayEarliestLeave: clock(CONFIG.fridayEarliestLeave),
+    plannedDaily: CONFIG.plannedDailyHours * H,
   };
 
   const TIME = '(\\d{1,2}:\\d{2}:\\d{2})';
@@ -63,6 +65,22 @@
     return { found: true, sec: sec === 0 ? null : sec };
   }
 
+  // 주간 근무현황의 요일 칸("9 (월) 출근 08:55 퇴근 18:00 총 …")에서 근무 인정 시작(9시) 전에
+  // 출근해 사이트 합계에 더해진 시간을 모은다. 칸의 시각은 분까지라 최대 1분 안쪽으로 넉넉하게 뺀다.
+  function earlyArrival(text) {
+    const parts = text.split(/\d{1,2}\s*\((?:월|화|수|목|금|토|일)\)/).slice(1);
+    let extra = 0;
+    for (const part of parts) {
+      const inM = part.match(/출근\s*(\d{1,2}:\d{2})/);
+      const outM = part.match(/퇴근\s*(\d{1,2}:\d{2})/);
+      if (!inM || !outM) continue; // 아직 퇴근 전인 날은 합계에 없다
+      const inSec = timeToSec(`${inM[1]}:00`);
+      const outSec = timeToSec(`${outM[1]}:00`);
+      extra += Math.max(0, Math.min(RULES.workStart, outSec) - inSec);
+    }
+    return extra;
+  }
+
   function parsePage(text) {
     const summaryAt = text.lastIndexOf('주간 합계');
     const summary = summaryAt >= 0 ? text.slice(summaryAt) : '';
@@ -77,6 +95,10 @@
       if (days.length) worked = days.reduce((a, b) => a + b, 0);
     }
 
+    // 사이트 합계는 실제 출근 시각부터 센 값이라 9시 전 시간을 뺀다.
+    const early = summaryAt >= 0 ? earlyArrival(text.slice(0, summaryAt)) : earlyArrival(text);
+    if (worked !== null) worked = Math.max(0, worked - early);
+
     const leaveMatch = summary.match(new RegExp(`휴가\\s*${DURATION}`));
     const leave = (leaveMatch && durationToSec(leaveMatch[1])) || 0;
 
@@ -89,7 +111,7 @@
     if (worked === null) missing.push('주간 근무시간');
     if (!clockIn.found) missing.push('출근 시각');
 
-    return { week, worked, leave, clockIn: clockIn.sec, clockOut: clockOut.sec, missing };
+    return { week, worked, early, leave, clockIn: clockIn.sec, clockOut: clockOut.sec, missing };
   }
 
   // 점심시간을 제외한 실제 근무시간
@@ -108,6 +130,22 @@
     return end;
   }
 
+  // 월~목: 목요일까지 남은 날을 하루 plannedDaily씩 일하고, 금요일에 오늘과 같은 시각에 출근한다고 보고
+  // 금요일에 몇 시에 퇴근할 수 있을지 계산한다. 오늘 이미 일한 시간은 그대로 센다.
+  function fridayForecast(page, weekday, total, todayWorked, clockedOut) {
+    if (weekday < 1 || weekday > 4) return null;
+    const todayMore = clockedOut ? 0 : Math.max(0, RULES.plannedDaily - todayWorked);
+    const planned = total + todayMore + RULES.plannedDaily * (4 - weekday);
+    const need = Math.max(0, RULES.weeklyTarget - planned);
+    const start = page.clockIn !== null ? Math.max(page.clockIn, RULES.workStart) : RULES.workStart;
+    return {
+      need,
+      start,
+      leaveAt: Math.max(finishTime(start, need), RULES.fridayEarliestLeave),
+      daily: RULES.plannedDaily,
+    };
+  }
+
   function evaluate(page, now) {
     if (page.missing.length) return { state: 'unreadable', missing: page.missing };
 
@@ -120,7 +158,13 @@
     const base = { isFriday, nowSec, target: RULES.weeklyTarget };
 
     if (page.clockIn !== null && page.clockOut !== null) {
-      return { ...base, state: 'clocked-out', total: before, remaining: RULES.weeklyTarget - before };
+      return {
+        ...base,
+        state: 'clocked-out',
+        total: before,
+        remaining: RULES.weeklyTarget - before,
+        friday: fridayForecast(page, now.getDay(), before, 0, true),
+      };
     }
 
     if (page.clockIn === null) {
@@ -130,13 +174,17 @@
         state: 'not-started',
         total: before,
         remaining: need,
-        leaveAt: isFriday ? Math.max(finishTime(nowSec, need), RULES.fridayEarliestLeave) : null,
+        leaveAt: isFriday ? Math.max(finishTime(Math.max(nowSec, RULES.workStart), need), RULES.fridayEarliestLeave) : null,
+        friday: fridayForecast(page, now.getDay(), before, 0, false),
       };
     }
 
-    const total = before + workedBetween(page.clockIn, nowSec);
+    // 9시 전에 출근했으면 9시부터 센다.
+    const startSec = Math.max(page.clockIn, RULES.workStart);
+    const todayWorked = workedBetween(startSec, nowSec);
+    const total = before + todayWorked;
     const need = Math.max(0, RULES.weeklyTarget - before);
-    const reachAt = finishTime(page.clockIn, need);
+    const reachAt = finishTime(startSec, need);
     return {
       ...base,
       state: 'working',
@@ -145,6 +193,7 @@
       reachAt,
       earlyLeave: isFriday && reachAt <= RULES.fridayEarliestLeave,
       leaveAt: isFriday ? Math.max(reachAt, RULES.fridayEarliestLeave) : null,
+      friday: fridayForecast(page, now.getDay(), total, todayWorked, false),
     };
   }
 
