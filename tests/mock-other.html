@@ -1,0 +1,47 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>다른 근무 시스템 모의 페이지</title>
+<!-- 하이웍스가 아닌 근무 페이지 흉내: 표기와 배치가 다르다. "읽을 곳 가르치기"를 시험한다. -->
+<style>
+  body { font-family: sans-serif; margin: 24px; color: #223; }
+  .top { display: flex; gap: 24px; margin-bottom: 16px; }
+  .card { border: 1px solid #ccd; border-radius: 8px; padding: 10px 14px; min-width: 120px; }
+  .card .k { font-size: 12px; color: #667; }
+  .card .v { font-size: 20px; font-weight: 700; }
+  table { border-collapse: collapse; }
+  td, th { border: 1px solid #ccd; padding: 4px 10px; }
+</style>
+<body>
+<h2>근태 관리 · 나의 근무</h2>
+<div class="top">
+  <div class="card"><div class="k">출근</div><div class="v" data-x="a81f3">IN 09:05</div></div>
+  <div class="card"><div class="k">퇴근</div><div class="v">--:--</div></div>
+  <div class="card"><div class="k">이번 주 누적 근무</div><div class="v">32:15</div></div>
+  <div class="card"><div class="k">휴가</div><div class="v">0h</div></div>
+</div>
+<table>
+  <tr><th>요일</th><th>출근</th><th>퇴근</th><th>근무</th></tr>
+  <tr><td>월</td><td>08:58</td><td>18:30</td><td>8.5h</td></tr>
+  <tr><td>화</td><td>09:10</td><td>19:20</td><td>9h</td></tr>
+  <tr><td>수</td><td>09:00</td><td>18:00</td><td>8h</td></tr>
+  <tr><td>목</td><td>09:02</td><td>17:47</td><td>6.75h</td></tr>
+</table>
+<script>
+  const params = new URLSearchParams(location.search);
+  const RealDate = Date;
+  const [hh, mm, ss] = (params.get('t') || '14:00:00').split(':').map(Number);
+  // 2026년 11월 6일(금)
+  const fixed = new RealDate(2026, 10, Number(params.get('d') || 6), hh, mm, ss).getTime();
+  window.Date = class extends RealDate {
+    constructor(...a) { a.length ? super(...a) : super(fixed); }
+    static now() { return fixed; }
+  };
+  const files = ['../src/site.js', '../src/config.js', '../src/calc.js', '../src/company.js', '../src/reader.js', '../src/content.js', '../src/builtin-characters.js', '../src/sprite.js', '../scripts/packs.js', '../src/themes.js', '../src/chars.js', '../dist/packs.js', '../src/mascot.js', '../src/visit.js', '../src/room.js'];
+  for (const src of files) {
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = false;
+    document.body.appendChild(s);
+  }
+</script>
+</body>

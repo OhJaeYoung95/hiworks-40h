@@ -6,14 +6,33 @@
     const [h, m] = hhmm.split(':').map(Number);
     return h * H + m * 60;
   };
-  const RULES = {
-    weeklyTarget: CONFIG.weeklyHours * H,
-    workStart: clock(CONFIG.workStart),
-    lunchStart: clock(CONFIG.lunchStart),
-    lunchEnd: clock(CONFIG.lunchEnd),
-    fridayEarliestLeave: clock(CONFIG.fridayEarliestLeave),
-    plannedDaily: CONFIG.plannedDailyHours * H,
-  };
+  // 지금 쓰는 근무 규칙. 회사 설정을 넣으면 setRules가 이 객체를 그대로 고쳐 쓴다 (다른 파일도 같은 객체를 본다).
+  const RULES = {};
+  // rules: company.js의 규칙 모양 { mode, hours, workStart, lunch, earliest, daily }. 없으면 config.js 기본값.
+  function setRules(rules) {
+    const r = rules || {
+      mode: 'week',
+      hours: CONFIG.weeklyHours,
+      workStart: CONFIG.workStart,
+      lunch: [CONFIG.lunchStart, CONFIG.lunchEnd],
+      earliest: CONFIG.fridayEarliestLeave,
+      daily: CONFIG.plannedDailyHours,
+    };
+    Object.assign(RULES, {
+      mode: r.mode || 'week',
+      hours: r.hours, // 'auto'면 월 단위에서 그달 평일 × 하루 시간
+      autoHours: r.hours === 'auto',
+      target: r.hours === 'auto' ? 0 : r.hours * H,
+      weeklyTarget: r.hours === 'auto' ? 0 : r.hours * H,
+      workStart: clock(r.workStart),
+      lunchStart: r.lunch ? clock(r.lunch[0]) : 0,
+      lunchEnd: r.lunch ? clock(r.lunch[1]) : 0,
+      fridayEarliestLeave: r.earliest ? clock(r.earliest) : 0,
+      plannedDaily: r.daily * H,
+    });
+    return RULES;
+  }
+  setRules(null);
 
   const TIME = '(\\d{1,2}:\\d{2}:\\d{2})';
   const DURATION = '((?:\\d+\\s*시간\\s*)?(?:\\d+\\s*분\\s*)?(?:\\d+\\s*초)?)';
@@ -148,18 +167,82 @@
     };
   }
 
+  // 오늘 이번 달 남은 평일 수 (오늘 포함 여부 선택). 공휴일은 모른다.
+  function weekdaysLeft(now, includeToday) {
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    let n = 0;
+    for (let d = now.getDate() + (includeToday ? 0 : 1); d <= last; d += 1) {
+      const day = new Date(now.getFullYear(), now.getMonth(), d).getDay();
+      if (day !== 0 && day !== 6) n += 1;
+    }
+    return n;
+  }
+
+  // 이번 달 평일 수 × 하루 시간 (월 단위 자동 목표)
+  function monthTarget(now) {
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    return weekdaysLeft(first, true) * RULES.plannedDaily;
+  }
+
+  // 하루 단위 (시차출퇴근): 출근 시각 + 하루 목표 = 퇴근
+  function evaluateDay(base, page, nowSec, startSec, clockedOut) {
+    const target = RULES.target;
+    const floor = (t) => Math.max(t, RULES.fridayEarliestLeave);
+    if (startSec === null) {
+      return { ...base, state: 'not-started', total: 0, remaining: target, leaveAt: floor(finishTime(Math.max(nowSec, RULES.workStart), target)) };
+    }
+    if (clockedOut) {
+      const total = workedBetween(startSec, page.clockOut);
+      return { ...base, state: 'clocked-out', total, remaining: target - total };
+    }
+    const total = workedBetween(startSec, nowSec);
+    const leaveAt = floor(finishTime(startSec, target));
+    return { ...base, state: 'working', total, remaining: Math.max(0, target - total), reachAt: leaveAt, leaveAt };
+  }
+
+  // 월 단위: 남은 시간을 남은 평일에 똑같이 나눠, 오늘 몇 시에 나가면 되는지 권한다.
+  function evaluateMonth(base, page, now, nowSec, startSec, todayWorked, clockedOut) {
+    const before = page.worked + page.leave;
+    const target = RULES.autoHours ? monthTarget(now) : RULES.target;
+    base = { ...base, target };
+    if (clockedOut) {
+      const daysLeft = weekdaysLeft(now, false);
+      const remaining = target - before;
+      return { ...base, state: 'clocked-out', total: before, remaining, month: { daysLeft, share: daysLeft ? Math.max(0, remaining) / daysLeft : 0 } };
+    }
+    const daysLeft = Math.max(1, weekdaysLeft(now, true));
+    const share = Math.max(0, target - before) / daysLeft;
+    if (startSec === null) {
+      return { ...base, state: 'not-started', total: before, remaining: Math.max(0, target - before), leaveAt: null, month: { daysLeft, share } };
+    }
+    const total = before + todayWorked;
+    const leaveAt = Math.max(finishTime(startSec, share), RULES.fridayEarliestLeave);
+    return { ...base, state: 'working', total, remaining: Math.max(0, target - total), reachAt: leaveAt, leaveAt, month: { daysLeft, share } };
+  }
+
   function evaluate(page, now) {
     if (page.missing.length) return { state: 'unreadable', missing: page.missing };
 
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    if (today < page.week.start || today > page.week.end) return { state: 'other-week' };
+    // 이번 주 날짜를 읽은 화면(하이웍스)에서만 다른 주인지 본다.
+    if (page.week && (today < page.week.start || today > page.week.end)) return { state: 'other-week' };
 
     const nowSec = now.getHours() * H + now.getMinutes() * 60 + now.getSeconds();
     const isFriday = now.getDay() === 5;
-    const before = page.worked + page.leave; // 오늘 진행분 제외(퇴근 후에는 사이트 합계에 포함됨)
-    const base = { isFriday, nowSec, target: RULES.weeklyTarget };
+    const base = { isFriday, nowSec, target: RULES.target, mode: RULES.mode };
+    const clockedOut = page.clockIn !== null && page.clockOut !== null;
+    // 근무 인정 시작보다 일찍 출근했으면 그 시각부터 센다.
+    const startSec = page.clockIn !== null ? Math.max(page.clockIn, RULES.workStart) : null;
+    const todayWorked = startSec !== null && !clockedOut ? workedBetween(startSec, nowSec) : 0;
+    // 누적에 오늘 일하는 중인 시간이 이미 들어 있는 화면이면 그만큼 빼고 아래에서 다시 더한다.
+    if (page.includesToday && todayWorked && page.worked !== null) page = { ...page, worked: Math.max(0, page.worked - todayWorked) };
 
-    if (page.clockIn !== null && page.clockOut !== null) {
+    if (RULES.mode === 'day') return evaluateDay(base, page, nowSec, startSec, clockedOut);
+    if (RULES.mode === 'month') return evaluateMonth(base, page, now, nowSec, startSec, todayWorked, clockedOut);
+
+    const before = page.worked + page.leave; // 오늘 진행분 제외(퇴근 후에는 사이트 합계에 포함됨)
+
+    if (clockedOut) {
       return {
         ...base,
         state: 'clocked-out',
@@ -169,7 +252,7 @@
       };
     }
 
-    if (page.clockIn === null) {
+    if (startSec === null) {
       const need = Math.max(0, RULES.weeklyTarget - before);
       return {
         ...base,
@@ -181,9 +264,6 @@
       };
     }
 
-    // 9시 전에 출근했으면 9시부터 센다.
-    const startSec = Math.max(page.clockIn, RULES.workStart);
-    const todayWorked = workedBetween(startSec, nowSec);
     const total = before + todayWorked;
     const need = Math.max(0, RULES.weeklyTarget - before);
     const reachAt = finishTime(startSec, need);
@@ -203,14 +283,15 @@
   function mascotMood(r) {
     if (!r) return 'normal';
     if (r.state === 'clocked-out') return 'rest';
-    if (r.state === 'working' && r.isFriday) {
+    // 오늘 퇴근 시각이 있는 날 (주 단위의 금요일, 월·하루 단위는 매일)
+    if (r.state === 'working' && typeof r.leaveAt === 'number') {
       if (r.nowSec >= r.leaveAt) return 'celebrate';
       if (r.leaveAt - r.nowSec <= H) return 'hurry';
     }
     return 'normal';
   }
 
-  const api = { RULES, parsePage, evaluate, mascotMood, workedBetween, finishTime, secToTime, formatDuration, timeToSec };
+  const api = { RULES, setRules, parsePage, evaluate, mascotMood, workedBetween, finishTime, secToTime, formatDuration, timeToSec };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.HW40 = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

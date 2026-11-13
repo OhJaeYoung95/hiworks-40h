@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
   "name": "하이웍스 40시간 퇴근 계산기",
-  "version": "1.8.0",
+  "version": "2.0.0",
   "description": "주 40시간 기준으로 금요일 퇴근 가능 시각을 표시합니다.",
   "content_scripts": [
     {
       "matches": ["https://hr-work.office.hiworks.com/*"],
-      "js": ["config.js", "calc.js", "content.js", "builtin-characters.js", "sprite.js", "themes.js", "chars.js", "mascot.js"],
+      "js": ["site.js", "config.js", "calc.js", "company.js", "reader.js", "content.js", "builtin-characters.js", "sprite.js", "themes.js", "chars.js", "mascot.js", "visit.js", "room.js"],
       "run_at": "document_idle"
     }
   ]

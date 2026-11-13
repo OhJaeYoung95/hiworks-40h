@@ -28,9 +28,11 @@
 <script>
   // ?build=1 이면 빌드된 Tampermonkey 스크립트를, 아니면 src/ 파일을 순서대로 불러온다.
   // 캐릭터 팩은 npm run build 가 만든 dist/packs.js 에서 읽는다 (예시 팩: HW40_INCLUDE_EXAMPLES=1).
+  // ?other=1 이 아니면 하이웍스 화면으로 본다 (다른 근무 페이지 흉내는 mock-other.html).
+  window.HW40_MOCK_HIWORKS = true;
   const files = params.has('build')
     ? ['../dist/hiworks-40h.user.js']
-    : ['../src/config.js', '../src/calc.js', '../src/content.js', '../src/builtin-characters.js', '../src/sprite.js', '../scripts/packs.js', '../src/themes.js', '../src/chars.js', '../dist/packs.js', '../src/mascot.js'];
+    : ['../src/site.js', '../src/config.js', '../src/calc.js', '../src/company.js', '../src/reader.js', '../src/content.js', '../src/builtin-characters.js', '../src/sprite.js', '../scripts/packs.js', '../src/themes.js', '../src/chars.js', '../dist/packs.js', '../src/mascot.js', '../src/visit.js', '../src/room.js'];
   for (const src of files) {
     const s = document.createElement('script');
     s.src = src;

@@ -18,6 +18,7 @@
   // 종이: 캐릭터는 종이에서 빠져나와 돌아다니고, 가두면 종이에 붙어 왼쪽 벽으로 유배된다.
   const EXILE_KEY = 'hw40-exiled';
   const EXILE_SCALE = 0.55;
+  const WALL_STAY_MS = 6000; // 방에서 나간 아바타가 벽에 붙어 있는 시간 (그 뒤 사라진다)
   const STORAGE_KEY = 'hw40-mascot-off';
   // 예전 "몽실이 그림 바꾸기"가 남긴 그림. 기능을 뺐으니 저장 공간만 비운다.
   const OLD_CUSTOM_KEY = 'hw40-custom-image';
@@ -80,6 +81,9 @@
     .sway { animation: sway 2.6s ease-in-out infinite alternate; transform-origin: 50% 0; }
     @keyframes sway { from { transform: rotate(-3deg); } to { transform: rotate(3deg); } }
     #ring { position: absolute; left: 50%; width: 0; height: 0; }
+    /* 놀러 온 캐릭터의 주인 이름표 */
+    #tag { position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%); padding: 0 6px; border-radius: 8px;
+      background: #3b5ba9; color: #fff; font: 600 10px/15px 'Malgun Gothic', sans-serif; white-space: nowrap; pointer-events: none; }
     #ring button { position: absolute; width: 38px; height: 38px; margin: -19px 0 0 -19px; padding: 0; border-radius: 50%;
       display: grid; place-items: center; background: #fff; border: 1.5px solid #6b4a2b; color: #4a3520;
       box-shadow: 0 2px 6px rgba(0,0,0,.2); font: 17px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif;
@@ -175,12 +179,17 @@
     // 저장소를 못 쓰면 지울 것도 없다.
   }
 
+  const pickOne = (list) => list[Math.floor(Math.random() * list.length)];
+
   // look: 테마가 정한 이름(name)과 크기(size)
+  // look.guest: 놀러 온 동료의 캐릭터일 때 { nick, pet(), leave() }
   function createMascot(def, index, count, look = {}) {
+    const guest = look.guest || null;
     // 패널보다 낮은 층에 두어 패널을 가리지 않게 한다. 빈 영역 클릭은 페이지로 통과시킨다.
     const W = look.size || (def.pack ? def.pack.size : WIDTH);
     const host = document.createElement('div');
     host.style.cssText = `position:fixed;left:0;bottom:0;width:${W}px;height:${W}px;z-index:${2147483640 + index};pointer-events:none;`;
+    host.dataset.hw40 = 'mascot';
     document.documentElement.appendChild(host);
     const shadow = host.attachShadow({ mode: 'open' });
     const label = String(look.name || def.label).replace(/[<>&"]/g, '');
@@ -189,11 +198,12 @@
       : `<svg viewBox="0 0 64 64" width="${W}" height="${W}" role="img" aria-label="${label}"><title>${label}</title>${def.art}${CONFETTI}</svg>`;
     shadow.innerHTML = `
       <style>${STYLE}</style>
-      <div id="bubble" hidden style="bottom:${W + 6}px"></div>
+      <div id="bubble" hidden style="bottom:${W + 6}px${guest ? ';white-space:normal;width:max-content;max-width:220px' : ''}"></div>
       <div id="card" style="width:${W}px;height:${W}px">
         <div id="paper" style="width:${Math.round(W * 1.25)}px;height:${Math.round(W * 1.4)}px;margin-left:${-Math.round(W * 0.625)}px" title="눌러서 풀어 주기"></div>
         <div id="flip" style="width:${W}px;height:${W}px;position:relative">${figure}</div>
       </div>
+      ${guest ? `<div id="tag">${String(guest.nick).replace(/[<>&"]/g, '')}</div>` : ''}
       <div id="ring" hidden style="bottom:${Math.round(W / 2)}px"></div>`;
     const flip = shadow.getElementById('flip');
     const card = shadow.getElementById('card');
@@ -208,6 +218,7 @@
 
     const m = {
       id: def.id,
+      guest,
       name: label,
       w: W,
       def,
@@ -330,6 +341,45 @@
         m.escape(0, '탈출!');
       });
     };
+    // 손님이 돌아갈 때: 종이에 촥 붙어서 화면 밖으로 날아간다.
+    m.goHome = (line, done) => {
+      if (m.departing) return;
+      m.departing = true;
+      // 아직 끝나지 않은 등장 연출이 나중에 끼어들지 않게 멈춘다.
+      timers.forEach(clearTimeout);
+      timers.length = 0;
+      m.chatUntil = 0;
+      m.closeMenu();
+      m.skit = null;
+      m.chase = null;
+      m.dragging = false;
+      m.falling = false;
+      m.y = 0;
+      m.phase = 'trap';
+      m.say(line || '안녕~', 900);
+      setPaper('show');
+      later(380, () => setFlat('flat stuck'));
+      later(950, () => {
+        m.phase = 'home';
+        bubble.hidden = true;
+        setPaper('on');
+        m.exiledAt = Date.now();
+        exiled.add(m);
+        layoutExile(m);
+      });
+      later(1950, () => card.classList.add('sway'));
+      later(1950 + WALL_STAY_MS, () => {
+        exiled.delete(m);
+        host.style.transition = 'opacity .6s ease-in';
+        host.style.opacity = '0';
+        layoutExile();
+      });
+      later(1950 + WALL_STAY_MS + 650, () => {
+        m.cleanup();
+        host.remove();
+        if (done) done();
+      });
+    };
     m.cleanup = () => timers.forEach(clearTimeout);
     // 유배된 종이 어디를 눌러도 풀려난다.
     paper.addEventListener('pointerdown', (e) => {
@@ -358,11 +408,22 @@
       bubble.style.right = leftAligned ? 'auto' : `${m.bubbleOffset}px`;
     }
 
+    m.chatUntil = 0;
     m.say = (text, ms, align = null, offset = 0) => {
+      // 사람이 직접 한 말(채팅)이 떠 있는 동안은 다른 대사로 덮지 않는다.
+      if (performance.now() < m.chatUntil) return;
       m.bubbleAlign = align;
       m.bubbleOffset = offset;
       showBubble(text);
       m.spokenUntil = performance.now() + ms;
+    };
+
+    // 놀러 가기에서 사람이 적은 말
+    m.chat = (text) => {
+      const ms = Math.max(3000, text.length * 180);
+      m.chatUntil = 0;
+      m.say(text, ms);
+      m.chatUntil = performance.now() + ms;
     };
 
     m.playSkit = (name, now = performance.now()) => {
@@ -435,6 +496,14 @@
     let menuTimer = 0;
     function menuActions() {
       const skitNames = Object.keys(def.skits);
+      if (guest) {
+        return [
+          ...(guest.pet ? [{ icon: '💗', label: '쓰다듬기', run: () => { m.say(pick(['헤헤', '좋아~', '♥']), 1800); m.hop('hop'); guest.pet(); } }] : []),
+          { icon: '🤸', label: '점프', run: () => { m.hop('click'); m.say(pick(['얍!', '홉!', '뿅!']), 1200); } },
+          ...(skitNames.length ? [{ icon: '⭐', label: '특기', run: () => m.playSkit(pick(skitNames)) }] : []),
+          ...(guest.leave ? [{ icon: '👋', label: '내보내기', run: () => guest.leave() }] : []),
+        ];
+      }
       return [
         { icon: '⏱', label: '남은 시간', run: () => m.say(remainingText(), 3000) },
         { icon: '📄', label: '가두기', run: () => m.trap() },
@@ -768,13 +837,15 @@
 
   let mascots = [];
   let off = readOff();
-  const applyOff = () => mascots.forEach((m) => { m.host.hidden = off; });
+  const applyOff = () => [...mascots, ...guests].forEach((m) => { m.host.hidden = off; });
 
   // ---------- 유배 ----------
   // 가둔 캐릭터는 왼쪽 벽에 작은 종이로 쌓인다. 새로고침해도 그대로 남는다 (캐릭터 id로 기억).
   const exiled = new Set();
   function saveExiled() {
-    writeValue(EXILE_KEY, [...exiled].sort((a, b) => a.exiledAt - b.exiledAt).map((m) => m.id));
+    // 방에서는 저장하지 않는다 (방장의 캐릭터를 가둔 것이 내 테마에 남지 않게). 아바타·떠나는 캐릭터도 뺀다.
+    if (roomCast) return;
+    writeValue(EXILE_KEY, [...exiled].filter((m) => !m.guest && !m.departing).sort((a, b) => a.exiledAt - b.exiledAt).map((m) => m.id));
   }
   // 유배된 종이들의 자리를 정한다. flying: 지금 막 날아가는 캐릭터 (한 바퀴 돌며 날아간다)
   function layoutExile(flying = null) {
@@ -828,6 +899,119 @@
   }
   window.addEventListener('resize', () => layoutExile());
 
+  // ---------- 방 모드 ----------
+  // 방에 있는 동안 화면의 캐릭터는 내 테마가 아니라 방 캐릭터(방장의 테마 + 데려온 캐릭터)다. 나가면 내 테마로 돌아온다.
+  let roomCast = null;
+  const roomDefs = new Map(); // 방 캐릭터 key → 그림이 함께 온 캐릭터 정의
+  function roomDef(c) {
+    const known = CATALOG.get(c.id);
+    if (known && !known.mine) return known;
+    if (c.spec && CHAR_RULES) {
+      if (!roomDefs.has(c.key)) {
+        try {
+          roomDefs.set(c.key, packDef(CHAR_RULES.normalizeCharacter(c.spec)));
+        } catch {
+          roomDefs.set(c.key, null);
+        }
+      }
+      if (roomDefs.get(c.key)) return roomDefs.get(c.key);
+    }
+    return known || null;
+  }
+  // 방 캐릭터를 맞춘다: 그대로인 캐릭터는 두고, 새로 온 캐릭터는 종이에서 나오고, 빠진 캐릭터는 벽으로 날아간다.
+  function syncRoom(list, intro) {
+    const want = list.map((c) => ({ c, def: roomDef(c) })).filter((w) => w.def);
+    const rest = [...mascots];
+    const next = want.map((w, i) => {
+      const at = rest.findIndex((m) => m.roomKey === w.c.key);
+      if (at >= 0) return rest.splice(at, 1)[0];
+      const m = createMascot(w.def, i, want.length, { name: w.c.name, size: w.c.size });
+      m.roomKey = w.c.key;
+      m.escape(intro ? 300 + i * 220 : 150, intro ? null : '왔다!');
+      return m;
+    });
+    for (const m of rest) {
+      guests.push(m);
+      m.goHome('안녕~', () => {
+        guests = guests.filter((x) => x !== m);
+      });
+    }
+    mascots = next;
+    api.mascots = mascots;
+    applyOff();
+  }
+
+  // ---------- 손님 (놀러 온 동료의 캐릭터) ----------
+  // 테마를 바꿔도 그대로 남고, 유배되지 않는다. 연결이 끊기면 종이에 붙어 돌아간다.
+  let guests = [];
+  // 받은 캐릭터 정보로 그릴 캐릭터를 정한다. 내게도 있는 기본·팩 캐릭터면 그것을, 직접 만든 캐릭터면 함께 온 그림을 쓴다.
+  function guestDef(info) {
+    const known = CATALOG.get(info && info.id);
+    if (known && !known.mine) return known;
+    if (info && info.spec && CHAR_RULES) {
+      try {
+        return packDef(CHAR_RULES.normalizeCharacter(info.spec));
+      } catch {
+        // 그림이 깨졌으면 아래에서 다른 캐릭터로 대신한다.
+      }
+    }
+    return known || CHARACTERS[0] || BASE_CATALOG[0];
+  }
+  // 지금 상대 화면에 놀러 갈 내 캐릭터: 유배되지 않은 첫 캐릭터
+  // 아바타로 고를 수 있는 캐릭터: 내 테마의 캐릭터들 (방에 있어 화면이 방장 테마여도 내 테마에서 고른다)
+  function myCast() {
+    return findTheme(activeKey).cast.filter((c) => CATALOG.has(c.id));
+  }
+  // 캐릭터 하나를 다른 사람에게 보낼 정보로 만든다. 직접 만든 캐릭터면 그림 설정까지 담는다.
+  function charInfo(id, look = {}) {
+    const def = CATALOG.get(id);
+    if (!def) return null;
+    const spec = def.mine ? savedChars().find((c) => c.id === id) || null : null;
+    const info = { id, name: look.name || def.label, size: look.size || (def.pack ? def.pack.size : WIDTH) };
+    if (spec) info.spec = spec;
+    return info;
+  }
+  api.guests = {
+    onCast: null, // 내 테마가 바뀌면 불린다 (아바타 목록 다시 만들기)
+    // 아바타로 고를 수 있는 내 캐릭터들
+    cast: () => [...new Map(myCast().map((c) => [c.id, { id: c.id, name: c.name || CATALOG.get(c.id).label }])).values()],
+    // 보낼 내 아바타 정보. id: 고른 캐릭터 (없으면 내 테마의 첫 캐릭터)
+    me(id) {
+      const cast = myCast();
+      const c = cast.find((x) => x.id === id) || cast[0] || { id: CHARACTERS[0].id };
+      return charInfo(c.id, c);
+    },
+    // 손님 캐릭터를 내 화면에 들인다. hooks: { nick, pet(), leave() }
+    arrive(info, hooks) {
+      const def = guestDef(info);
+      const size = Math.min(Math.max(Number(info && info.size) || 0, 32), 160) || undefined;
+      const name = String((info && info.name) || def.label).slice(0, 20);
+      const g = createMascot(def, 9, 1, { name, size, guest: hooks });
+      g.x = Math.random() * clearMaxX(g.w);
+      g.host.title = `${hooks.nick}님의 ${name}`;
+      g.host.hidden = off;
+      guests.push(g);
+      g.escape(200, hooks.quiet ? null : hooks.self ? '나왔다!' : `${hooks.nick}님 입장!`);
+      return {
+        say(text) {
+          if (!g.phase) g.chat(text);
+        },
+        // 다른 사람이 쓰다듬었다
+        react(nick) {
+          if (!g.phase) {
+            g.say(`${nick}님이 쓰다듬었다! 헤헤`, 2200);
+            g.hop('hop');
+          }
+        },
+        leave(line) {
+          g.goHome(line, () => {
+            guests = guests.filter((x) => x !== g);
+          });
+        },
+      };
+    },
+  };
+
   let activeKey = findTheme(readJson(ACTIVE_KEY, 'default')).key;
   spawn(findTheme(activeKey));
 
@@ -865,7 +1049,9 @@
       const theme = findTheme(key);
       activeKey = theme.key;
       writeValue(ACTIVE_KEY, activeKey === 'default' ? null : activeKey);
-      spawn(theme);
+      // 방에 있는 동안은 화면을 바꾸지 않는다 (방을 나오면 이 테마로 돌아온다).
+      if (!roomCast) spawn(theme);
+      if (api.guests.onCast) api.guests.onCast();
       return theme.key;
     },
     // 저장하지 않고 잠깐 보여주기 (테마 만들기 화면의 미리 보기)
@@ -924,6 +1110,36 @@
     // 다른 탭(캐릭터 만들기)에서 넣은 캐릭터를 다시 읽는다.
     reload: () => loadMyChars(),
   };
+  api.room = {
+    // 방장이 방을 열 때 쓰는 처음 방 캐릭터 = 내 지금 테마
+    themeCast: () => myCast().map((c) => charInfo(c.id, c)).filter(Boolean),
+    // 데려올 수 있는 내 캐릭터들 (기본·팩·직접 만든 캐릭터)
+    bringable: () => [...CATALOG.values()].map((d) => ({ id: d.id, name: d.label, mine: Boolean(d.mine) })),
+    entryFor: (id) => charInfo(id),
+    get active() { return Boolean(roomCast); },
+    // 방 캐릭터를 맞춘다. 처음이면 화면을 방으로 바꾼다.
+    setCast(list) {
+      const first = !roomCast;
+      if (first) {
+        for (const m of mascots) {
+          m.cleanup();
+          m.host.remove();
+        }
+        exiled.clear();
+        mascots = [];
+      }
+      roomCast = list;
+      syncRoom(list, first);
+      layoutExile();
+    },
+    // 방에서 나왔다: 내 테마로 돌아온다.
+    exit() {
+      if (!roomCast) return;
+      roomCast = null;
+      roomDefs.clear();
+      spawn(findTheme(activeKey));
+    },
+  };
   api.toggleMascot = () => {
     off = !off;
     applyOff();
@@ -932,12 +1148,13 @@
 
   // 메뉴 바깥을 누르면 열린 메뉴를 닫는다.
   window.addEventListener('pointerdown', (e) => {
-    for (const m of mascots) if (m.menuOpen && !e.composedPath().includes(m.host)) m.closeMenu();
+    for (const m of [...mascots, ...guests]) if (m.menuOpen && !e.composedPath().includes(m.host)) m.closeMenu();
   }, true);
 
   let nextMeetAt = 0;
   function checkMeetings(now) {
     if (now < nextMeetAt) return;
+    const mascots = everyone();
     for (let i = 0; i < mascots.length; i++) {
       for (let j = i + 1; j < mascots.length; j++) {
         const [a, b] = [mascots[i], mascots[j]];
@@ -945,7 +1162,9 @@
         if (a.skit || b.skit || a.chaser || b.chaser || !a.free() || !b.free() || Math.abs(a.x - b.x) > reach * 0.8) continue;
         const pair = MEET_LINES[[a.id, b.id].sort().join('+')] || {};
         // 정해진 짝 대사가 없으면 팩의 lines.meet (상대 id 또는 default)를 쓴다.
-        const lineOf = (me, other) => pair[me.id] || (me.def.meet && (me.def.meet[other.id] || me.def.meet.default));
+        // 손님과 만나면 따로 정한 대사가 없어도 인사한다.
+        const lineOf = (me, other) => pair[me.id] || (me.def.meet && (me.def.meet[other.id] || me.def.meet.default))
+          || (me.guest || other.guest ? pickOne(['안녕!', '반가워!', '어디서 왔어?', '놀러 왔구나!']) : null);
         const [left, right] = a.x <= b.x ? [a, b] : [b, a];
         const [leftLine, rightLine] = [lineOf(left, right), lineOf(right, left)];
         if (!leftLine && !rightLine) continue;
@@ -965,8 +1184,10 @@
     }
   }
 
+  const everyone = () => (guests.length ? [...mascots, ...guests] : mascots);
   let nextChaseAt = performance.now() + 15000;
   function checkChase(now) {
+    const mascots = everyone();
     if (now < nextChaseAt) return;
     nextChaseAt = now + CHASE_COOLDOWN_MS * (0.7 + Math.random() * 0.6);
     for (const chaser of mascots.filter((m) => m.chaser && !m.chase && m.free())) {
@@ -987,7 +1208,7 @@
         checkMeetings(now);
         checkChase(now);
       }
-      mascots.forEach((m) => m.update(now, dt, mood));
+      everyone().forEach((m) => m.update(now, dt, mood));
     }
     requestAnimationFrame(frame);
   }
