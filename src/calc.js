@@ -65,18 +65,20 @@
     return { found: true, sec: sec === 0 ? null : sec };
   }
 
-  // 주간 근무현황의 요일 칸("9 (월) 출근 08:55 퇴근 18:00 총 …")에서 근무 인정 시작(9시) 전에
-  // 출근해 사이트 합계에 더해진 시간을 모은다. 칸의 시각은 분까지라 최대 1분 안쪽으로 넉넉하게 뺀다.
+  // 주간 근무현황의 요일 칸("출근 08:55 퇴근 18:00 총 8시간 4분 33초")에서 근무 인정 시작(9시) 전에
+  // 출근해 사이트 합계에 더해진 시간을 모은다. 요일 이름과 칸이 떨어져 읽혀도 되도록 칸 내용만 찾는다.
+  // 그날 합계에서 9시~퇴근 근무시간을 뺀 만큼이 9시 전 시간이다 (퇴근 전인 오늘 칸은 "총"이 없어 건너뛴다).
   function earlyArrival(text) {
-    const parts = text.split(/\d{1,2}\s*\((?:월|화|수|목|금|토|일)\)/).slice(1);
+    const cell = new RegExp(`출근\\s*(\\d{1,2}:\\d{2})(?::\\d{2})?\\s*퇴근\\s*(\\d{1,2}:\\d{2})(?::\\d{2})?\\s*총\\s*:?\\s*${DURATION}`, 'g');
     let extra = 0;
-    for (const part of parts) {
-      const inM = part.match(/출근\s*(\d{1,2}:\d{2})/);
-      const outM = part.match(/퇴근\s*(\d{1,2}:\d{2})/);
-      if (!inM || !outM) continue; // 아직 퇴근 전인 날은 합계에 없다
-      const inSec = timeToSec(`${inM[1]}:00`);
-      const outSec = timeToSec(`${outM[1]}:00`);
-      extra += Math.max(0, Math.min(RULES.workStart, outSec) - inSec);
+    for (const m of text.matchAll(cell)) {
+      const inSec = timeToSec(`${m[1]}:00`);
+      const outSec = timeToSec(`${m[2]}:00`);
+      const total = durationToSec(m[3]);
+      if (inSec >= RULES.workStart || total === null) continue;
+      // 화면의 출근 시각은 분까지라 1분 안쪽 여유를 둔다.
+      const cap = RULES.workStart - inSec + 59;
+      extra += Math.max(0, Math.min(total - workedBetween(RULES.workStart, outSec), cap));
     }
     return extra;
   }
@@ -96,7 +98,7 @@
     }
 
     // 사이트 합계는 실제 출근 시각부터 센 값이라 9시 전 시간을 뺀다.
-    const early = summaryAt >= 0 ? earlyArrival(text.slice(0, summaryAt)) : earlyArrival(text);
+    const early = earlyArrival(text);
     if (worked !== null) worked = Math.max(0, worked - early);
 
     const leaveMatch = summary.match(new RegExp(`휴가\\s*${DURATION}`));

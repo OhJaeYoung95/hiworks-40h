@@ -169,63 +169,34 @@ test('월~목에는 목요일까지 하루 8시간, 오늘 출근 시각 기준�
   assert.strictEqual(evaluate(page(40 * H, null), new Date(2026, 10, 7, 11, 0, 0)).friday, null);
 });
 
-test('9시 전에 출근해도 9시부터 센다 (사이트 합계에서 일찍 온 시간을 뺀다)', () => {
-  // 2026-11-13(금) 실제 화면: 월~목 08:55~18:00(사이트 합계 하루 8시간 4분대), 금요일 08:55:27 출근
-  const text = `출근하기
-08:55:27
-퇴근하기
-00:00:00
-주간 근무현황
-2026년 11월 09일 ~ 15일
-9 (월)
-출근
-08:55
-퇴근
-18:00
-총 8시간 4분 33초
-10 (화)
-출근
-08:55
-퇴근
-18:00
-총 8시간 4분 13초
-11 (수)
-출근
-08:52
-퇴근
-18:00
-총 8시간 7분 27초
-12 (목)
-출근
-08:56
-퇴근
-18:00
-총 8시간 3분 24초
-13 (금)
-출근
-08:55
-14 (토)
-15 (일)
-주간 합계
-계획 0분 0초
-휴가 0분 0초
-실근무
-총: 32시간 19분 37초
-야간: 0분 0초
-`;
-  const page = parsePage(text);
-  // 5분 + 5분 + 8분 + 4분 = 22분을 뺀다
-  assert.strictEqual(page.early, 22 * 60);
-  assert.strictEqual(secToTime(page.worked), '31:57:37');
-  const r = evaluate(page, new Date('2026-11-13T14:20:00'));
-  // 9시부터 8시간 2분 23초 + 점심 1시간
-  assert.strictEqual(secToTime(r.leaveAt), '18:02:23');
-  assert.strictEqual(secToTime(r.total), '36:17:37');
+// 2026-11-13(금) 실제 화면 숫자: 월~목 08:55쯤 출근·18:00 퇴근, 금요일 08:55:27 출근
+const DAYS = [
+  ['9 (월)', '08:55', '18:00', '8시간 4분 33초'],
+  ['10 (화)', '08:55', '18:00', '8시간 4분 10초'],
+  ['11 (수)', '08:52', '18:00', '8시간 7분 27초'],
+  ['12 (목)', '08:56', '18:00', '8시간 3분 27초'],
+];
+const cellOf = ([, i, o, t]) => `출근\n${i}\n퇴근\n${o}\n총 ${t}`;
+const head = `출근하기\n08:55:27\n퇴근하기\n00:00:00\n주간 근무현황\n2026년 11월 09일 ~ 15일\n`;
+const sum = `계획 0분 0초\n휴가 0분 0초\n실근무\n총: 32시간 19분 37초\n야간: 0분 0초\n`;
+// 요일마다 이름과 칸이 붙어 읽히는 화면
+const byDay = `${head}${DAYS.map((d) => `${d[0]}\n${cellOf(d)}`).join('\n')}\n13 (금)\n출근\n08:55\n14 (토)\n15 (일)\n주간 합계\n${sum}`;
+// 표처럼 요일 이름 줄(주간 합계 포함)이 먼저 읽히고 칸이 뒤에 오는 화면
+const byRow = `${head}${DAYS.map((d) => d[0]).join('\t')}\t13 (금)\t14 (토)\t15 (일)\t주간 합계\n${DAYS.map(cellOf).join('\t')}\t출근\n08:55\t휴무일\t휴일\t${sum}`;
 
-  // 출근 전에도 9시 전이면 9시부터 센다
-  const before = evaluate(parsePage(text.replace('08:55:27', '00:00:00')), new Date('2026-11-13T08:30:00'));
-  assert.strictEqual(secToTime(before.leaveAt), '18:02:23');
-});
+for (const [name, text] of [['요일별', byDay], ['표 형태', byRow]]) {
+  test(`9시 전 출근 시간은 금요일 퇴근에 영향이 없다: 매일 18:00 퇴근이면 금요일도 18:00 (${name})`, () => {
+    const page = parsePage(text);
+    assert.strictEqual(secToTime(page.early), '00:19:37');
+    assert.strictEqual(secToTime(page.worked), '32:00:00');
+    const r = evaluate(page, new Date('2026-11-13T14:20:00'));
+    assert.strictEqual(secToTime(r.leaveAt), '18:00:00');
+    assert.strictEqual(secToTime(r.total), '36:20:00');
+    // 출근 전(아침 8시 반)에 보면 9시 출근 기준
+    const before = evaluate(parsePage(text.replace('08:55:27', '00:00:00')), new Date('2026-11-13T08:30:00'));
+    assert.strictEqual(secToTime(before.leaveAt), '18:00:00');
+  });
+}
 
 test('9시 이후 출근과 요일 칸이 없는 화면은 그대로 계산한다', () => {
   const page = parsePage(screen());
