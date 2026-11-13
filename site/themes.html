@@ -51,6 +51,12 @@
   .card .name { font-weight: 600; font-size: 13px; }
   .card .id { color: var(--muted); font-size: 11px; }
   .card button { padding: 3px 10px; font-size: 12px; width: 100%; }
+  .card { position: relative; }
+  .card.mine { border-color: var(--accent); }
+  .card .del { position: absolute; right: -6px; top: -6px; width: 24px; height: 24px; padding: 0; border-radius: 50%; font-size: 12px; }
+  .tag { font-size: 11px; color: var(--accent); font-weight: 600; }
+  .addchar { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .addchar h3 { font-size: 14px; margin: 0 0 4px; }
   .thumb { background: var(--thumb); border-radius: 8px; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; }
   .thumb > div { background-repeat: no-repeat; background-position: center bottom; background-size: contain; }
 
@@ -83,7 +89,13 @@
     <section>
       <h2>캐릭터 <small id="catalogCount"></small></h2>
       <div id="catalog"></div>
-      <p class="hint">새 캐릭터 그림은 <a href="studio.html">캐릭터 팩</a>으로 저장소에 올리면 여기에 나타납니다.</p>
+      <div class="addchar">
+        <h3>캐릭터 코드 넣기</h3>
+        <p class="hint" style="margin-top:0">받은 캐릭터 코드나 <a href="maker.html">캐릭터 만들기</a>에서 만든 캐릭터를 넣으면 위 목록에 들어가요. 이 캐릭터를 쓴 테마는 테마 코드에 그림까지 함께 담겨요.</p>
+        <textarea id="charCode" rows="2" placeholder="HW40C1.… 캐릭터 코드를 붙여 넣으세요" aria-label="캐릭터 코드"></textarea>
+        <div class="row"><button id="charAdd">캐릭터 넣기</button><button id="charFile">파일에서 넣기</button></div>
+        <div class="msg" id="charMsg"></div>
+      </div>
     </section>
   </div>
 
@@ -118,7 +130,7 @@
     </section>
     <section>
       <h2>코드 불러오기</h2>
-      <textarea id="importCode" rows="3" placeholder="HW40T1.…" aria-label="불러올 코드"></textarea>
+      <textarea id="importCode" rows="3" placeholder="HW40T….. 테마 코드를 붙여 넣으세요" aria-label="불러올 코드"></textarea>
       <div class="row"><button id="importBtn">불러와서 고치기</button></div>
       <div class="msg" id="importMsg"></div>
     </section>
@@ -126,6 +138,7 @@
       <h2>공용 테마로 올리기</h2>
       <p class="hint" style="margin-top:0">모두의 🎨 목록에 기본으로 나오게 하려면 저장소에 <code id="sharedPath">themes/my-theme.json</code> 파일로 이 내용을 넣고 푸시하세요.</p>
       <label class="field" style="margin-top:8px"><span>파일 이름 (영문 소문자·숫자·-)</span><input type="text" id="fileId" value="my-theme" maxlength="40"></label>
+      <p class="msg warn" id="jsonNote" hidden>직접 넣은 캐릭터가 들어 있어서 공용 테마로는 올릴 수 없어요. 그림이 저장소에 없기 때문이에요. 이 테마는 공유 코드로 나눠 주세요.</p>
       <textarea id="json" rows="6" readonly aria-label="테마 JSON"></textarea>
       <div class="row"><button id="copyJson">JSON 복사</button></div>
     </section>
@@ -143,17 +156,28 @@
 </script>
 <script src="studio/builtin-characters.js"></script>
 <script src="studio/sprite.js"></script>
+<script src="studio/pack-rules.js"></script>
 <script src="studio/themes.js"></script>
+<script src="studio/chars.js"></script>
 <script src="studio/packs-data.js"></script>
 <script src="studio/mascot.js"></script>
 <script>
 (function () {
   const T = window.HW40_THEMES;
   const engine = window.HW40.themes;
+  const myChars = window.HW40.characters;
   const ART_CSS = window.HW40_BUILTINS.artCss;
   const $ = (id) => document.getElementById(id);
-  const catalog = engine.catalog();
-  const byId = new Map(catalog.map((c) => [c.id, c]));
+  let catalog = engine.catalog();
+  let byId = new Map(catalog.map((c) => [c.id, c]));
+  // 내 캐릭터를 넣거나 지운 뒤 목록을 다시 만든다. 테마에서 사라진 캐릭터는 뺀다.
+  function refreshCatalog() {
+    myChars.reload();
+    catalog = engine.catalog();
+    byId = new Map(catalog.map((c) => [c.id, c]));
+    draft.cast = draft.cast.filter((m) => byId.has(m.id));
+    changed();
+  }
   const defaultSize = (c) => (c.pack ? c.pack.size : 64);
 
   let draft = { name: '', cast: [] };
@@ -188,11 +212,24 @@
     $('catalog').replaceChildren(
       ...catalog.map((c) => {
         const card = document.createElement('div');
-        card.className = 'card';
+        card.className = c.mine ? 'card mine' : 'card';
         card.appendChild(thumb(c, 64));
         card.insertAdjacentHTML('beforeend', `<div class="name"></div><div class="id"></div>`);
         card.querySelector('.name').textContent = c.label + (c.chaser ? ' 👾' : '');
-        card.querySelector('.id').textContent = c.id + (c.pack ? ' · 팩' : ' · 기본');
+        card.querySelector('.id').textContent = c.mine ? '내 캐릭터' : c.pack ? '팩' : '기본';
+        if (c.mine) {
+          const del = document.createElement('button');
+          del.className = 'del';
+          del.textContent = '✕';
+          del.title = `${c.label} 지우기`;
+          del.setAttribute('aria-label', `${c.label} 지우기`);
+          del.onclick = () => {
+            if (!window.confirm(`"${c.label}" 캐릭터를 지울까요? 이 브라우저의 목록에서만 지워져요.`)) return;
+            myChars.remove(c.id);
+            refreshCatalog();
+          };
+          card.appendChild(del);
+        }
         const add = document.createElement('button');
         add.textContent = '＋ 넣기';
         add.disabled = draft.cast.length >= T.MAX_CAST;
@@ -279,6 +316,7 @@
   }
 
   let previewTimer = 0;
+  let codeStamp = 0;
   function changed(rerender = true) {
     if (rerender) {
       renderCast();
@@ -292,8 +330,15 @@
       return;
     }
     const { theme } = T.normalizeTheme(raw);
-    $('code').value = T.encodeTheme(theme);
-    $('json').value = JSON.stringify(theme, null, 2);
+    // 내 캐릭터가 들어 있으면 그림까지 담은 코드가 된다 (만드는 데 잠깐 걸린다).
+    const stamp = (codeStamp += 1);
+    engine.code(theme).then((code) => {
+      if (stamp === codeStamp) $('code').value = code;
+    });
+    const hasMine = theme.cast.some((m) => byId.get(m.id) && byId.get(m.id).mine);
+    $('jsonNote').hidden = !hasMine;
+    $('json').value = hasMine ? '' : JSON.stringify(theme, null, 2);
+    $('copyJson').disabled = hasMine;
     clearTimeout(previewTimer);
     previewTimer = setTimeout(() => {
       engine.preview(theme);
@@ -346,10 +391,16 @@
     $('sharedPath').textContent = `themes/${id}.json`;
   };
 
-  $('importBtn').onclick = () => {
+  $('importBtn').onclick = async () => {
     const msg = $('importMsg');
     try {
-      const { theme, warnings } = T.normalizeTheme(T.decodeTheme($('importCode').value), new Set(byId.keys()));
+      const { theme: raw, characters } = await T.decodeThemeCode($('importCode').value);
+      // 테마 코드에 캐릭터가 담겨 있으면 내 캐릭터 목록에도 넣는다.
+      if (characters.length) {
+        myChars.addSpecs(characters);
+        refreshCatalog();
+      }
+      const { theme, warnings } = T.normalizeTheme(raw, new Set(byId.keys()));
       load(theme);
       msg.className = warnings.length ? 'msg warn' : 'msg ok';
       msg.textContent = `"${theme.name}" 테마를 불러왔어요.${warnings.length ? ` ${warnings.join(' ')}` : ''}`;
@@ -365,6 +416,33 @@
       for (const x of document.querySelectorAll('#moods button')) x.setAttribute('aria-pressed', String(x === b));
     };
   }
+
+  // ---------- 캐릭터 코드 넣기 ----------
+  async function addChar(code) {
+    const msg = $('charMsg');
+    try {
+      const r = await myChars.addCode(code);
+      refreshCatalog();
+      msg.className = 'msg ok';
+      msg.textContent = r.replaced ? `"${r.name}" 캐릭터를 새 그림으로 바꿨어요.` : `"${r.name}" 캐릭터를 넣었어요. 목록에서 ＋ 넣기를 눌러 테마에 넣으세요.`;
+      $('charCode').value = '';
+    } catch (e) {
+      msg.className = 'msg err';
+      msg.textContent = String(code).trim().startsWith('HW40T') ? '테마 코드예요. 오른쪽 "코드 불러오기"에 넣어 주세요.' : e.message;
+    }
+  }
+  $('charAdd').onclick = () => addChar($('charCode').value);
+  $('charFile').onclick = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt,text/plain';
+    input.onchange = async () => input.files[0] && addChar(await input.files[0].text());
+    input.click();
+  };
+  // 캐릭터 만들기 화면(다른 탭)에서 "테마 만들기에 넣기"를 누르면 목록을 다시 읽는다.
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'hw40-my-chars') refreshCatalog();
+  });
 
   // 처음에는 기본 테마를 불러온다.
   load(engine.list()[0]);

@@ -68,7 +68,7 @@ function studioFiles(packs) {
 const SCRIPT_NAME = 'hiworks-40h.user.js';
 // 실행 순서가 중요하다: 설정 → 계산 → 패널 → 기본 캐릭터 → 팩 재생기 → 팩 규칙 → 테마·캐릭터 코드 규칙
 // → 캐릭터 팩·공용 테마 → 캐릭터 엔진
-const SOURCES = ['config.js', 'calc.js', 'content.js', 'builtin-characters.js', 'sprite.js', 'pack-rules', 'themes.js', 'chars.js', 'packs', 'mascot.js'];
+const SOURCES = ['version', 'config.js', 'calc.js', 'content.js', 'builtin-characters.js', 'sprite.js', 'pack-rules', 'themes.js', 'chars.js', 'packs', 'mascot.js'];
 
 function readManifest() {
   return JSON.parse(fs.readFileSync(path.join(SRC, 'manifest.json'), 'utf8'));
@@ -115,6 +115,8 @@ function build({ version, baseUrl, repository, packsDir = PACKS_DIR, themesDir =
 
   const read = (file) => {
     if (file === 'packs') return packs;
+    // 패널에 보여줄 버전 (Tampermonkey 머리말의 @version과 같다)
+    if (file === 'version') return `globalThis.HW40_VERSION = ${JSON.stringify(version)};`;
     // 캐릭터 코드 검사에 쓰는 팩 규칙 (빌드와 같은 파일)
     if (file === 'pack-rules') return fs.readFileSync(path.join(__dirname, 'packs.js'), 'utf8').trim();
     return fs.readFileSync(path.join(SRC, file), 'utf8').trim();

@@ -191,8 +191,9 @@
       <button class="primary" id="makeCode" style="width:100%">캐릭터 코드 만들기</button>
       <textarea id="code" rows="4" readonly hidden style="margin-top:10px" aria-label="캐릭터 코드"></textarea>
       <div class="row" id="codeActions" hidden><button id="copyCode">코드 복사</button><button id="saveFile">파일로 저장</button></div>
+      <button id="toThemes" style="width:100%;margin-top:10px">테마 만들기에 넣기 →</button>
       <div class="msg" id="codeMsg"></div>
-      <p class="note">받은 사람은 하이웍스 패널의 <b>🎨 → ＋ 캐릭터 코드 넣기</b>(또는 <b>파일에서 넣기</b>)로 캐릭터 목록에 넣고, <b>✎ 이 테마 고치기</b>에서 골라 테마에 넣으면 화면에 나와요. 같은 캐릭터를 고쳐서 다시 보내면 받은 사람 화면에서도 새 그림으로 바뀌어요.</p>
+      <p class="note"><b>테마 만들기에 넣기</b>를 누르면 이 캐릭터가 테마 만들기의 캐릭터 목록에 들어가요. 거기서 테마를 만들고 <b>테마 코드</b>를 하이웍스 패널 <b>🎨 → ＋ 테마 코드 넣기</b>에 넣으면 화면에 나와요. 캐릭터 코드를 받은 사람도 테마 만들기의 <b>캐릭터 코드 넣기</b>에 넣어 쓰면 돼요. 같은 캐릭터를 고쳐서 다시 보내면 받은 사람 화면에서도 새 그림으로 바뀌어요.</p>
     </section>
 
     <section>
@@ -490,6 +491,7 @@
       showCheck(missingIdle ? '"서 있을 때" 그림을 넣어 주세요.' : e.message, missingIdle ? 'warn' : 'err');
     }
     $('makeCode').disabled = !pack;
+    $('toThemes').disabled = !pack;
     setupStage();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
@@ -622,6 +624,23 @@
     a.download = fileName();
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
+  // 같은 사이트의 테마 만들기 화면이 읽는 내 캐릭터 목록에 바로 넣는다.
+  $('toThemes').onclick = () => {
+    if (!pack) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem('hw40-my-chars') || '[]');
+      const spec = toSpec();
+      const list = (Array.isArray(saved) ? saved : []).filter((c) => c && c.id !== spec.id);
+      localStorage.setItem('hw40-my-chars', JSON.stringify([...list, spec]));
+      $('codeMsg').className = 'msg ok';
+      $('codeMsg').textContent = `"${spec.label}"을(를) 테마 만들기에 넣었어요.`;
+      window.open('themes.html', 'hw40-themes');
+    } catch {
+      $('codeMsg').className = 'msg err';
+      $('codeMsg').textContent = '브라우저 저장 공간이 모자라 넣지 못했어요. 테마 만들기에서 안 쓰는 캐릭터를 지워 주세요.';
+    }
   };
 
   async function importCode(text) {

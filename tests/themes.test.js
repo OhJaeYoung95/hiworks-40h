@@ -53,3 +53,17 @@ test('themes/ 폴더의 공용 테마가 스크립트에 묶이고, 없는 캐�
 test('저장소의 공용 테마는 규격에 맞는다', () => {
   assert.doesNotThrow(() => build({ version: '1.5.0', baseUrl: null, repository: undefined }));
 });
+
+test('내 캐릭터가 든 테마는 그림까지 담은 코드(HW40T2)로 주고받는다', async () => {
+  const { encodeThemeCode, decodeThemeCode } = require('../src/themes.js');
+  const chars = [{ id: 'my-a', label: '에이', animations: { idle: { frames: ['data:image/png;base64,AAAA'] } } }];
+  const theme = { name: '우리 팀', cast: [{ id: 'kong' }, { id: 'my-a', size: 90 }] };
+  const code = await encodeThemeCode(theme, chars);
+  assert.match(code, /^HW40T2\./);
+  assert.deepStrictEqual(await decodeThemeCode(`${code.slice(0, 9)}\n${code.slice(9)}`), { theme, characters: chars });
+  // 내 캐릭터가 없으면 짧은 HW40T1 그대로
+  const plain = await encodeThemeCode({ name: '기본만', cast: [{ id: 'kong' }] });
+  assert.match(plain, /^HW40T1\./);
+  assert.deepStrictEqual(await decodeThemeCode(plain), { theme: { name: '기본만', cast: [{ id: 'kong' }] }, characters: [] });
+  await assert.rejects(decodeThemeCode('HW40T2.%%%'), /깨졌어요/);
+});

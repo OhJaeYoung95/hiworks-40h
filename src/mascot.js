@@ -15,6 +15,9 @@
   const SCREAM_HEIGHT = 50; // 이보다 높은 데서 떨어지면 비명을 지른다
   const LAND_MS = 420;
   const MENU_IDLE_MS = 5000;
+  // 종이: 캐릭터는 종이에서 빠져나와 돌아다니고, 가두면 종이에 붙어 왼쪽 벽으로 유배된다.
+  const EXILE_KEY = 'hw40-exiled';
+  const EXILE_SCALE = 0.55;
   const STORAGE_KEY = 'hw40-mascot-off';
   // 예전 "몽실이 그림 바꾸기"가 남긴 그림. 기능을 뺐으니 저장 공간만 비운다.
   const OLD_CUSTOM_KEY = 'hw40-custom-image';
@@ -55,6 +58,27 @@
     @keyframes flail { from { transform: rotate(-9deg) scaleY(1.06); } to { transform: rotate(9deg) scaleY(1.06); } }
     @keyframes squash { 0% { transform: scale(1.35, .62); } 45% { transform: scale(.88, 1.14); } 75% { transform: scale(1.06, .95); } 100% { transform: none; } }
     /* 클릭 메뉴: 캐릭터 둘레에 동그란 말풍선 버튼 */
+    /* 종이: 캐릭터 뒤에 깔리는 공책 종이 */
+    #card { position: relative; }
+    #paper { position: absolute; left: 50%; bottom: -5px; border-radius: 3px; opacity: 0; pointer-events: none;
+      background: #fffdf5 repeating-linear-gradient(to bottom, transparent 0 13px, rgba(110,140,200,.28) 13px 14px);
+      border: 1px solid #e3dccb; box-shadow: 0 3px 9px rgba(0,0,0,.2); transform-origin: 50% 100%; }
+    #paper::before { content: ''; position: absolute; top: 0; bottom: 0; left: 14%; width: 1px; background: rgba(220,110,110,.45); }
+    #paper.on { opacity: 1; }
+    #paper.show { animation: paperIn .34s cubic-bezier(.2,.9,.3,1.25) both; }
+    #paper.away { animation: paperAway .75s ease-in both; }
+    #paper.exiled { opacity: 1; pointer-events: auto; cursor: pointer; }
+    @keyframes paperIn { from { opacity: 0; transform: translateY(24px) scaleY(.08); } to { opacity: 1; transform: none; } }
+    @keyframes paperAway { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate(-26px, 46px) rotate(-38deg) scale(.7); } }
+    /* 종이 위의 그림이 된 모습 → 촥 붙기 → 톡 튀어나오기 */
+    .flat { filter: sepia(.5) saturate(.7) contrast(.95); }
+    .flat svg, .flat #jump { transform: scale(.88); transform-origin: 50% 100%; }
+    .stuck svg, .stuck #jump { animation: splat .36s cubic-bezier(.3,1.4,.5,1) both; transform-origin: 50% 100%; }
+    @keyframes splat { 0% { transform: none; } 35% { transform: scale(1.3, .68); } 100% { transform: scale(.88); } }
+    .popout svg, .popout #jump { animation: popout .55s cubic-bezier(.3,1.5,.5,1); transform-origin: 50% 100%; }
+    @keyframes popout { 0% { transform: scale(.88); } 40% { transform: translateY(-20px) scale(1.12); } 100% { transform: none; } }
+    .sway { animation: sway 2.6s ease-in-out infinite alternate; transform-origin: 50% 0; }
+    @keyframes sway { from { transform: rotate(-3deg); } to { transform: rotate(3deg); } }
     #ring { position: absolute; left: 50%; width: 0; height: 0; }
     #ring button { position: absolute; width: 38px; height: 38px; margin: -19px 0 0 -19px; padding: 0; border-radius: 50%;
       display: grid; place-items: center; background: #fff; border: 1.5px solid #6b4a2b; color: #4a3520;
@@ -166,9 +190,14 @@
     shadow.innerHTML = `
       <style>${STYLE}</style>
       <div id="bubble" hidden style="bottom:${W + 6}px"></div>
-      <div id="flip" style="width:${W}px;height:${W}px">${figure}</div>
+      <div id="card" style="width:${W}px;height:${W}px">
+        <div id="paper" style="width:${Math.round(W * 1.25)}px;height:${Math.round(W * 1.4)}px;margin-left:${-Math.round(W * 0.625)}px" title="눌러서 풀어 주기"></div>
+        <div id="flip" style="width:${W}px;height:${W}px;position:relative">${figure}</div>
+      </div>
       <div id="ring" hidden style="bottom:${Math.round(W / 2)}px"></div>`;
     const flip = shadow.getElementById('flip');
+    const card = shadow.getElementById('card');
+    const paper = shadow.getElementById('paper');
     const bubble = shadow.getElementById('bubble');
     const svg = shadow.querySelector('svg');
     const sprite = shadow.getElementById('sprite');
@@ -206,7 +235,108 @@
       menuOpen: false,
     };
     // 지금 땅에서 평소처럼 움직일 수 있는지 (만남·쫓기 판정에 쓴다)
-    m.free = () => !m.dragging && !m.falling && m.y === 0 && !m.menuOpen;
+    m.free = () => !m.dragging && !m.falling && m.y === 0 && !m.menuOpen && !m.phase;
+    m.phase = null; // 종이 연출 중: escape(빠져나옴) · trap(갇힘) · fly(날아감) · exiled(유배) · return(돌아옴)
+    m.exiledAt = 0;
+
+    // ---------- 종이 ----------
+    const timers = [];
+    const later = (ms, fn) => timers.push(setTimeout(fn, ms));
+    const setPaper = (...names) => {
+      paper.className = '';
+      if (names.length) {
+        void paper.offsetWidth; // 같은 애니메이션을 다시 시작하게 한다
+        paper.classList.add(...names);
+      }
+    };
+    const setFlat = (name) => {
+      flip.classList.remove('flat', 'stuck', 'popout');
+      if (name) {
+        void flip.offsetWidth;
+        flip.classList.add(...name.split(' '));
+      }
+    };
+    // 종이에서 톡 튀어나온다 (처음 나올 때, 풀려날 때).
+    m.escape = (delay = 0, line = null) => {
+      m.phase = 'escape';
+      setPaper('on');
+      setFlat('flat');
+      later(delay + 450, () => {
+        setPaper('away');
+        setFlat('popout');
+        if (line) m.say(line, 1400);
+      });
+      later(delay + 1050, () => {
+        setPaper();
+        setFlat(null);
+        m.phase = null;
+        m.action = 'idle';
+        m.actionUntil = performance.now() + 600;
+      });
+    };
+    // 가두기: 종이가 스르륵 → 촥 붙고 → 왼쪽 벽으로 날아가 유배
+    m.trap = () => {
+      m.closeMenu();
+      m.skit = null;
+      m.chase = null;
+      m.phase = 'trap';
+      m.say('어?', 700);
+      setPaper('show');
+      later(380, () => {
+        setFlat('flat stuck');
+        m.say('촥!', 900);
+      });
+      later(1000, () => {
+        bubble.hidden = true;
+        m.spokenUntil = 0;
+        m.phase = 'fly';
+        m.exiledAt = Date.now();
+        setPaper('on');
+        exiled.add(m);
+        layoutExile(m);
+        saveExiled();
+      });
+      later(1950, () => {
+        m.phase = 'exiled';
+        // 날아오며 한 바퀴 돈 각도를 같은 모양의 각도로 되돌린다 (다음 자리 이동 때 거꾸로 돌지 않게).
+        host.style.transition = 'none';
+        host.style.transform = host.style.transform.replace(/rotate\((-?[\d.]+)deg\)/, (_, a) => `rotate(${Number(a) + 360}deg)`);
+        setPaper('exiled');
+        card.classList.add('sway');
+      });
+    };
+    // 유배된 채로 바로 놓기 (새로고침 뒤)
+    m.placeExiled = () => {
+      m.phase = 'exiled';
+      m.exiledAt = m.exiledAt || Date.now();
+      setPaper('exiled');
+      setFlat('flat');
+      card.classList.add('sway');
+    };
+    // 풀어 주기: 바닥으로 내려와서 탈출
+    m.releaseFromExile = () => {
+      if (m.phase !== 'exiled') return;
+      m.phase = 'return';
+      card.classList.remove('sway');
+      exiled.delete(m);
+      saveExiled();
+      m.x = Math.random() * clearMaxX(W);
+      m.y = 0;
+      host.style.transition = 'transform .6s cubic-bezier(.4,0,.3,1.2)';
+      host.style.transform = `translate(${m.x}px, 0) rotate(0deg) scale(1)`;
+      layoutExile();
+      later(650, () => {
+        host.style.transition = '';
+        m.escape(0, '탈출!');
+      });
+    };
+    m.cleanup = () => timers.forEach(clearTimeout);
+    // 유배된 종이 어디를 눌러도 풀려난다.
+    paper.addEventListener('pointerdown', (e) => {
+      if (m.phase !== 'exiled' || e.button !== 0) return;
+      e.preventDefault();
+      m.releaseFromExile();
+    });
 
     m.hop = (kind = 'hop') => {
       if (m.hopping) return;
@@ -307,6 +437,7 @@
       const skitNames = Object.keys(def.skits);
       return [
         { icon: '⏱', label: '남은 시간', run: () => m.say(remainingText(), 3000) },
+        { icon: '📄', label: '가두기', run: () => m.trap() },
         { icon: '🤸', label: '점프', run: () => { m.hop('click'); m.say(pick(['얍!', '홉!', '뿅!']), 1200); } },
         { icon: '💗', label: '쓰다듬기', run: () => { m.say(pick(['헤헤', '좋아~', '♥', '기분 좋다']), 1800); m.hop('hop'); } },
         {
@@ -371,6 +502,12 @@
     let press = null;
     figureEl.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
+      // 종이 연출 중에는 잡을 수 없다. 유배된 종이는 누르면 풀려난다.
+      if (m.phase) {
+        e.preventDefault();
+        if (m.phase === 'exiled') m.releaseFromExile();
+        return;
+      }
       e.preventDefault();
       press = { id: e.pointerId, sx: e.clientX, sy: e.clientY, gx: e.clientX - m.x, gy: window.innerHeight - e.clientY - m.y };
       try {
@@ -467,6 +604,19 @@
     }
 
     m.update = (now, dt, mood) => {
+      if (m.phase) {
+        // 종이 연출 중: 위치는 연출이 정하고, 그림만 넘긴다.
+        if (m.phase === 'escape') host.style.transform = `translate(${m.x}px, 0)`;
+        flip.classList.remove('party', 'hop', 'walk', 'fast');
+        flip.classList.add('idle');
+        const facing = render ? render('idle', now, m.dir) : m.dir;
+        flip.style.transform = `scaleX(${facing})`;
+        if (m.phase === 'escape' || m.phase === 'trap') {
+          if (now < m.spokenUntil) showBubble(bubble.textContent);
+          else bubble.hidden = true;
+        } else bubble.hidden = true;
+        return;
+      }
       if (m.dragging || m.falling || now < m.landUntil) {
         updateAir(now, dt);
         return;
@@ -620,22 +770,95 @@
   let off = readOff();
   const applyOff = () => mascots.forEach((m) => { m.host.hidden = off; });
 
+  // ---------- 유배 ----------
+  // 가둔 캐릭터는 왼쪽 벽에 작은 종이로 쌓인다. 새로고침해도 그대로 남는다 (캐릭터 id로 기억).
+  const exiled = new Set();
+  function saveExiled() {
+    writeValue(EXILE_KEY, [...exiled].sort((a, b) => a.exiledAt - b.exiledAt).map((m) => m.id));
+  }
+  // 유배된 종이들의 자리를 정한다. flying: 지금 막 날아가는 캐릭터 (한 바퀴 돌며 날아간다)
+  function layoutExile(flying = null) {
+    const list = [...exiled].sort((a, b) => a.exiledAt - b.exiledAt);
+    let y = 96;
+    let x = 10;
+    list.forEach((m, i) => {
+      const h = m.w * 1.4 * EXILE_SCALE;
+      if (y + h > window.innerHeight - 20) {
+        y = 96;
+        x += m.w * 1.25 * EXILE_SCALE + 10;
+      }
+      // 크기를 줄이면 가운데를 기준으로 줄어드므로 그만큼 당겨 놓는다.
+      const shrink = (m.w * (1 - EXILE_SCALE)) / 2;
+      const angle = [-6, 4, -2, 6][i % 4];
+      const spin = m === flying ? angle - 360 : angle;
+      m.host.style.transition = m === flying ? 'transform .9s cubic-bezier(.5,-0.25,.35,1)' : 'transform .4s ease';
+      m.host.style.transform = `translate(${x - shrink}px, ${-(y - shrink)}px) rotate(${spin}deg) scale(${EXILE_SCALE})`;
+      if (m !== flying) setTimeout(() => { if (m.phase === 'exiled') m.host.style.transition = ''; }, 420);
+      y += h + 8;
+    });
+  }
+
   // 테마대로 캐릭터를 다시 만든다. 이 버전에 없는 캐릭터는 건너뛴다.
-  function spawn(theme) {
-    for (const m of mascots) m.host.remove();
+  // intro: 종이에서 차례로 빠져나오는 연출 (처음 열 때·테마를 바꿀 때)
+  function spawn(theme, intro = true) {
+    for (const m of mascots) {
+      m.cleanup();
+      m.host.remove();
+    }
+    exiled.clear();
     const cast = theme.cast.filter((c) => CATALOG.has(c.id));
     const list = cast.length ? cast : defaultTheme().cast;
     mascots = list.map((c, i) => createMascot(CATALOG.get(c.id), i, list.length, c));
     api.mascots = mascots;
+    const saved = readJson(EXILE_KEY, []);
+    const wanted = Array.isArray(saved) ? [...saved] : [];
+    let order = 0;
+    mascots.forEach((m) => {
+      const at = wanted.indexOf(m.id);
+      if (at >= 0) {
+        wanted.splice(at, 1);
+        m.exiledAt = (order += 1);
+        exiled.add(m);
+        m.placeExiled();
+      }
+    });
+    layoutExile();
+    if (intro) mascots.filter((m) => !m.phase).forEach((m, i) => m.escape(300 + i * 260, i === 0 ? '나왔다!' : null));
     applyOff();
   }
+  window.addEventListener('resize', () => layoutExile());
 
   let activeKey = findTheme(readJson(ACTIVE_KEY, 'default')).key;
   spawn(findTheme(activeKey));
 
+  // ---------- 내 캐릭터 저장소 ----------
+  // 테마 만들기 화면에서 넣은 캐릭터, 또는 테마 코드에 담겨 온 캐릭터의 설정(그림 포함)
+  const savedChars = () => {
+    const saved = readJson(MY_CHARS_KEY, []);
+    return Array.isArray(saved) ? saved.filter((c) => c && typeof c.id === 'string') : [];
+  };
+  // 캐릭터 설정들을 검사해 저장한다. 같은 id면 새 그림으로 바꾼다.
+  function storeChars(specs) {
+    const packs = specs.map((spec) => CHAR_RULES.normalizeCharacter(spec));
+    const ids = new Set(packs.map((p) => p.id));
+    const before = savedChars();
+    const replaced = before.filter((c) => ids.has(c.id)).map((c) => c.id);
+    if (!writeValue(MY_CHARS_KEY, [...before.filter((c) => !ids.has(c.id)), ...specs])) {
+      throw new CHAR_RULES.CharError('브라우저 저장 공간이 모자라 저장하지 못했어요. 안 쓰는 테마나 캐릭터를 지워 주세요.');
+    }
+    loadMyChars();
+    return { packs, replaced };
+  }
+  // 어느 내 테마에도 쓰이지 않는 캐릭터를 지운다 (하이웍스 화면에서 테마를 지울 때).
+  function dropUnusedChars() {
+    const used = new Set(savedThemes().flatMap((t) => (t.cast || []).map((c) => (typeof c === 'string' ? c : c && c.id))));
+    writeValue(MY_CHARS_KEY, savedChars().filter((c) => used.has(c.id)));
+    loadMyChars();
+  }
+
   api.themes = {
-    // 캐릭터 목록 (테마 만들기 화면에서 씀)
-    catalog: () => [...CATALOG.values()].map((d) => ({ id: d.id, label: d.label, pack: d.pack || null, art: d.art || null, chaser: Boolean(d.chaser) })),
+    // 고를 수 있는 캐릭터 목록 (테마 만들기 화면에서 씀). mine: 직접 넣은 캐릭터
+    catalog: () => [...CATALOG.values()].map((d) => ({ id: d.id, label: d.label, pack: d.pack || null, art: d.art || null, chaser: Boolean(d.chaser), mine: Boolean(d.mine) })),
     list: () => allThemes().map(({ key, name, source, cast }) => ({ key, name, source, cast })),
     active: () => activeKey,
     apply(key) {
@@ -648,82 +871,58 @@
     // 저장하지 않고 잠깐 보여주기 (테마 만들기 화면의 미리 보기)
     preview(raw) {
       const { theme, warnings } = THEME_RULES.normalizeTheme(raw, knownIds);
-      spawn(theme);
+      spawn(theme, false);
       return warnings;
     },
-    // 내 테마로 저장하고 바로 적용한다. key가 내 테마면 그 테마를 고치고, 아니면 새로 만든다.
-    save(raw, key) {
+    // 테마 코드를 내 테마로 추가하고 바로 적용한다. 코드에 담긴 캐릭터도 함께 저장한다.
+    async addCode(code) {
+      const text = String(code || '').trim();
+      if (text.startsWith(CHAR_RULES.CODE_PREFIX)) {
+        throw new THEME_RULES.ThemeError('캐릭터 코드예요. 테마 만들기 화면에서 캐릭터를 넣고 테마를 만든 뒤, 테마 코드를 넣어 주세요.');
+      }
+      const { theme: raw, characters } = await THEME_RULES.decodeThemeCode(text);
+      if (characters.length) storeChars(characters);
       const { theme, warnings } = THEME_RULES.normalizeTheme(raw, knownIds);
-      const list = savedThemes();
-      const old = key && key.startsWith('mine:') ? list.find((t) => t.key === key.slice(5)) : null;
-      const savedKey = old ? old.key : Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-      const next = old ? list.map((t) => (t.key === savedKey ? { key: savedKey, ...theme } : t)) : [...list, { key: savedKey, ...theme }];
-      if (!writeValue(THEMES_KEY, next)) throw new THEME_RULES.ThemeError('브라우저 저장소를 쓸 수 없어 테마를 저장하지 못했어요.');
-      api.themes.apply(`mine:${savedKey}`);
-      return { key: `mine:${savedKey}`, name: theme.name, warnings };
+      const key = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+      if (!writeValue(THEMES_KEY, [...savedThemes(), { key, ...theme }])) {
+        throw new THEME_RULES.ThemeError('브라우저 저장소를 쓸 수 없어 테마를 저장하지 못했어요.');
+      }
+      api.themes.apply(`mine:${key}`);
+      return { key: `mine:${key}`, name: theme.name, warnings, characters: characters.length };
     },
-    // 공유 코드를 내 테마로 추가하고 바로 적용한다.
-    addCode(code) {
-      return api.themes.save(THEME_RULES.decodeTheme(code));
-    },
+    // 내 테마를 지운다. 그 테마에만 쓰이던 캐릭터도 함께 지운다.
     remove(key) {
       const target = myThemes().find((t) => t.key === key);
       if (!target) return;
       writeValue(THEMES_KEY, savedThemes().filter((t) => t.key !== target.savedKey));
+      dropUnusedChars();
       if (activeKey === key) api.themes.apply('default');
     },
-    code: (key) => {
-      const t = findTheme(key);
-      return THEME_RULES.encodeTheme({ name: t.name, cast: t.cast });
+    // 공유 코드. 내 캐릭터가 들어 있으면 그 그림까지 담는다.
+    code(keyOrTheme) {
+      const t = typeof keyOrTheme === 'string' ? findTheme(keyOrTheme) : keyOrTheme;
+      const ids = new Set(t.cast.map((c) => c.id));
+      return THEME_RULES.encodeThemeCode({ name: t.name, cast: t.cast }, savedChars().filter((c) => ids.has(c.id)));
     },
     site: PACKS.site || null,
   };
 
-  // ---------- 내 캐릭터 ----------
-  const savedChars = () => {
-    const saved = readJson(MY_CHARS_KEY, []);
-    return Array.isArray(saved) ? saved : [];
-  };
+  // 테마 만들기 화면에서 쓰는 내 캐릭터 관리 (하이웍스 패널에서는 쓰지 않는다)
   api.characters = {
     list: () => myDefs.map((d) => ({ id: d.id, label: d.label })),
-    // 캐릭터 코드를 추가하고 화면에 바로 내보낸다. 같은 캐릭터(id)면 새 그림으로 바꾼다.
     async addCode(code) {
       const spec = await CHAR_RULES.decodeCharacter(code);
-      const pack = CHAR_RULES.normalizeCharacter(spec);
-      const list = savedChars();
-      const replaced = list.some((c) => c && c.id === pack.id);
-      const next = [...list.filter((c) => c && c.id !== pack.id), spec];
-      if (!writeValue(MY_CHARS_KEY, next)) {
-        throw new CHAR_RULES.CharError('브라우저 저장 공간이 모자라 저장하지 못했어요. 안 쓰는 내 캐릭터를 지우거나 그림을 줄여 주세요.');
-      }
-      // 캐릭터 목록에만 넣는다. 테마에 넣는 건 🎨 → 테마 고치기에서 고른다.
-      // 이미 테마에 들어 있던 캐릭터를 새 그림으로 바꾼 경우에는 화면을 다시 그린다.
-      loadMyChars();
-      spawn(findTheme(activeKey));
-      const m = mascots.find((x) => x.id === pack.id);
-      if (m) {
-        m.say('짠!', 2000);
-        m.hop();
-      }
-      return { id: pack.id, name: pack.label, replaced, shown: Boolean(m) };
+      const { packs, replaced } = storeChars([spec]);
+      return { id: packs[0].id, name: packs[0].label, replaced: replaced.length > 0 };
     },
     remove(id) {
-      writeValue(MY_CHARS_KEY, savedChars().filter((c) => c && c.id !== id));
-      // 내 테마에서도 빼고, 그 캐릭터만 있던 테마는 지운다.
-      writeValue(
-        THEMES_KEY,
-        savedThemes()
-          .map((t) => ({ ...t, cast: (t.cast || []).filter((c) => (typeof c === 'string' ? c : c && c.id) !== id) }))
-          .filter((t) => t.cast.length)
-      );
+      writeValue(MY_CHARS_KEY, savedChars().filter((c) => c.id !== id));
       loadMyChars();
-      if (!findTheme(activeKey) || findTheme(activeKey).key !== activeKey) activeKey = 'default';
-      spawn(findTheme(activeKey));
     },
-    code: (id) => {
-      const spec = savedChars().find((c) => c && c.id === id);
-      return spec ? CHAR_RULES.encodeCharacter(spec) : Promise.reject(new Error('없는 캐릭터예요.'));
-    },
+    // 테마 코드에 담겨 온 캐릭터 설정을 넣는다.
+    addSpecs: (specs) => storeChars(specs),
+    // 다른 탭(캐릭터 만들기)에서 넣은 캐릭터를 다시 읽는다.
+    reload: () => loadMyChars(),
   };
   api.toggleMascot = () => {
     off = !off;

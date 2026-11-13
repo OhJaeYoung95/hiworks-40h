@@ -19,6 +19,8 @@
       .main { font-size: 26px; font-weight: 700; margin: 2px 0; font-variant-numeric: tabular-nums; }
       .note { font-weight: 600; margin-bottom: 8px; }
       .hint { color: #889; font-size: 11px; margin-top: 4px; }
+      .foot { display: flex; justify-content: flex-end; margin-top: 6px; color: #aab; font-size: 10px; }
+      .updated { margin: 6px 0 0; padding: 5px 8px; border-radius: 6px; background: #eef6e6; color: #3d6b1f; font-size: 12px; font-weight: 600; }
       .row { display: flex; justify-content: space-between; color: #556; font-variant-numeric: tabular-nums; }
       .pill { padding: 6px 12px; background: #fff; border: 1px solid #d5dbe5; border-radius: 16px;
         box-shadow: 0 2px 8px rgba(0,0,0,.15); color: #222; font: 600 13px 'Malgun Gothic', sans-serif; }
@@ -34,51 +36,54 @@
       .menu-actions { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; font-size: 12px; }
       .menu-actions button, .menu-actions a { font-size: 12px; color: #3b5ba9; text-decoration: none; padding: 0; }
       .msg { font-size: 12px; color: #556; margin-top: 4px; }
-      .menu-title.sub { margin-top: 10px; }
-      .char { display: flex; align-items: center; gap: 4px; font-size: 13px; padding: 2px 4px; }
-      .char span { flex: 1; }
-      .char button { font-size: 12px; }
-      .empty-note { font-size: 12px; color: #889; padding: 2px 4px; }
-      .editor { margin-top: 6px; padding: 6px; background: #fff; border: 1px solid #d5dbe5; border-radius: 6px; }
-      .editor input[type="text"] { width: 100%; box-sizing: border-box; font: 13px 'Malgun Gothic', sans-serif; padding: 3px 6px; border: 1px solid #ccd3df; border-radius: 4px; }
-      .edit-list { max-height: 170px; overflow-y: auto; margin-top: 6px; }
-      .edit-list label { display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 1px 2px; cursor: pointer; }
       textarea { width: 100%; box-sizing: border-box; height: 56px; font: 11px Consolas, monospace; margin-top: 4px; }
     </style>
     <div class="panel" id="panel">
-      <div class="head"><span id="title"></span><span><button id="pet" title="캐릭터 켜기/끄기">🐾</button><button id="theme" title="테마·내 캐릭터">🎨</button><button id="min" title="접기">–</button></span></div>
+      <div class="head"><span id="title"></span><span><button id="pet" title="캐릭터 켜기/끄기">🐾</button><button id="theme" title="캐릭터 테마">🎨</button><button id="min" title="접기">–</button></span></div>
       <div class="menu" id="themeMenu" hidden>
         <div class="menu-title">캐릭터 테마</div>
         <div id="themeList" role="radiogroup" aria-label="캐릭터 테마"></div>
         <div class="menu-actions">
-          <button id="themeEditBtn">✎ 이 테마 고치기</button><button id="themeNew">＋ 새 테마</button><button id="themeAdd">테마 코드 넣기</button><button id="themeCopy">코드 복사</button><a id="themeMake" target="_blank" rel="noopener" hidden>테마 만들기 ↗</a>
+          <button id="themeAdd">＋ 테마 코드 넣기</button><button id="themeFile">파일에서 넣기</button><button id="themeCopy">코드 복사</button><a id="themeMake" target="_blank" rel="noopener" hidden>테마 만들기 ↗</a>
         </div>
-        <div class="editor" id="themeEdit" hidden>
-          <input type="text" id="editName" maxlength="20" aria-label="테마 이름" placeholder="테마 이름">
-          <div class="edit-list" id="editList"></div>
-          <div class="menu-actions"><button id="editSave">저장</button><button id="editCancel">취소</button></div>
-          <div class="msg" id="editNote"></div>
+        <div id="themePaste" hidden>
+          <textarea id="themeCode" placeholder="받은 테마 코드(HW40T…)를 붙여 넣으세요"></textarea>
+          <div class="menu-actions"><button id="themeOk">넣기</button><button id="themeCancel">취소</button></div>
         </div>
         <div class="msg" id="themeMsg" hidden></div>
-        <div class="menu-title sub">내 캐릭터 <span style="color:#99a">(이 브라우저에만 저장)</span></div>
-        <div id="charList"></div>
-        <div class="menu-actions">
-          <button id="charAdd">＋ 캐릭터 코드 넣기</button><button id="charFile">파일에서 넣기</button><a id="charMake" target="_blank" rel="noopener" hidden>캐릭터 만들기 ↗</a>
-        </div>
-        <div id="charPaste" hidden>
-          <textarea id="charCode" placeholder="받은 캐릭터 코드(HW40C1.…)를 붙여 넣으세요"></textarea>
-          <div class="menu-actions"><button id="charOk">넣기</button><button id="charCancel">취소</button></div>
-        </div>
-        <div class="msg" id="charMsg" hidden></div>
       </div>
       <div class="main" id="main"></div>
       <div class="note" id="note"></div>
       <div id="rows"></div>
       <div class="hint" id="hint" hidden></div>
+      <div class="updated" id="updated" hidden></div>
+      <div class="foot"><span id="version"></span></div>
     </div>
     <button class="pill" id="pill" hidden></button>`;
 
   const $ = (id) => shadow.getElementById(id);
+
+  // 지금 쓰는 버전. 새 버전을 받은 뒤 처음 열면 잠깐 알려준다.
+  const VERSION = globalThis.HW40_VERSION || '';
+  const SEEN_KEY = 'hw40-seen-version';
+  if (VERSION) {
+    $('version').textContent = `v${VERSION}`;
+    $('version').title = '40시간 퇴근 계산기 버전';
+    let seen = null;
+    try {
+      seen = localStorage.getItem(SEEN_KEY);
+      localStorage.setItem(SEEN_KEY, VERSION);
+    } catch {
+      // 저장소를 못 쓰면 알림 없이 버전만 보여준다.
+    }
+    if (seen && seen !== VERSION) {
+      $('updated').textContent = `새 버전 v${VERSION}로 업데이트됐어요`;
+      $('updated').hidden = false;
+      setTimeout(() => {
+        $('updated').hidden = true;
+      }, 15000);
+    }
+  }
   const setCollapsed = (collapsed) => {
     $('panel').hidden = collapsed;
     $('pill').hidden = !collapsed;
@@ -137,173 +142,48 @@
     if (t.site) {
       $('themeMake').href = `${t.site}themes.html`;
       $('themeMake').hidden = false;
-      $('charMake').href = `${t.site}maker.html`;
-      $('charMake').hidden = false;
     }
-    renderChars();
   }
-  // ---------- 내 캐릭터 ----------
-  // 캐릭터 만들기 화면에서 받은 코드(또는 .txt 파일)를 넣으면 그림까지 이 브라우저에 저장된다.
-  const chars = () => globalThis.HW40.characters;
-  const charMessage = (text) => {
-    $('charMsg').textContent = text || '';
-    $('charMsg').hidden = !text;
-  };
-  function renderChars() {
-    const c = chars();
-    if (!c) return;
-    const list = c.list();
-    if (!list.length) {
-      const note = document.createElement('div');
-      note.className = 'empty-note';
-      note.textContent = '아직 없어요. 받은 코드를 넣거나 직접 만들어 보세요.';
-      $('charList').replaceChildren(note);
-      return;
-    }
-    $('charList').replaceChildren(
-      ...list.map((ch) => {
-        const row = document.createElement('div');
-        row.className = 'char';
-        const name = document.createElement('span');
-        name.textContent = ch.label;
-        const copy = document.createElement('button');
-        copy.textContent = '코드';
-        copy.title = '이 캐릭터 코드 복사 (동료에게 보내기)';
-        copy.onclick = async () => {
-          const code = await c.code(ch.id);
-          try {
-            await navigator.clipboard.writeText(code);
-            charMessage(`"${ch.label}" 코드를 복사했어요. 메신저에 붙여 넣어 보내 주세요.`);
-          } catch {
-            window.prompt('이 코드를 복사해 보내 주세요.', code);
-          }
-        };
-        const del = document.createElement('button');
-        del.textContent = '✕';
-        del.title = '이 캐릭터 지우기';
-        del.onclick = () => {
-          if (!window.confirm(`"${ch.label}" 캐릭터를 지울까요?`)) return;
-          c.remove(ch.id);
-          renderChars();
-          renderThemes();
-        };
-        row.append(name, copy, del);
-        return row;
-      })
-    );
-  }
-  async function addCharCode(code) {
-    try {
-      const r = await chars().addCode(code);
-      charMessage(
-        r.replaced
-          ? `"${r.name}" 캐릭터를 새 그림으로 바꿨어요.`
-          : `"${r.name}" 캐릭터를 목록에 넣었어요. 위의 ✎ 이 테마 고치기(또는 ＋ 새 테마)에서 골라 넣으세요.`
-      );
-      $('charPaste').hidden = true;
-      $('charCode').value = '';
-    } catch (e) {
-      charMessage(e.message);
-    }
-    renderChars();
-  }
-  $('charAdd').onclick = () => {
-    $('charPaste').hidden = !$('charPaste').hidden;
-    charMessage('');
-    if (!$('charPaste').hidden) $('charCode').focus();
-  };
-  $('charCancel').onclick = () => {
-    $('charPaste').hidden = true;
-  };
-  $('charOk').onclick = () => addCharCode($('charCode').value);
-  $('charFile').onclick = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.txt,text/plain';
-    input.onchange = async () => {
-      const file = input.files && input.files[0];
-      if (file) addCharCode(await file.text());
-    };
-    input.click();
-  };
-
-  // ---------- 테마 고치기 ----------
-  // 캐릭터를 골라 내 테마로 저장한다. 기본·공용 테마는 그대로 두고 새 내 테마로 저장된다.
-  let editing = null; // { key, cast }
-  function openEditor(theme) {
-    const t = themes();
-    editing = { key: theme && theme.source === 'mine' ? theme.key : null, cast: theme ? theme.cast : [] };
-    $('editName').value = theme ? (theme.source === 'mine' ? theme.name : `${theme.name} (내 버전)`.slice(0, 20)) : '새 테마';
-    const picked = new Set(editing.cast.map((c) => c.id));
-    const mine = new Set(chars() ? chars().list().map((c) => c.id) : []);
-    $('editList').replaceChildren(
-      ...t.catalog().map((c) => {
-        const row = document.createElement('label');
-        const box = document.createElement('input');
-        box.type = 'checkbox';
-        box.value = c.id;
-        box.checked = picked.has(c.id);
-        const name = document.createElement('span');
-        name.textContent = c.label;
-        row.append(box, name);
-        if (mine.has(c.id)) {
-          const tag = document.createElement('span');
-          tag.className = 'tag';
-          tag.textContent = '내 캐릭터';
-          row.appendChild(tag);
-        }
-        return row;
-      })
-    );
-    $('editNote').textContent = editing.key ? '' : theme ? '기본·공용 테마는 그대로 두고, 고친 내용은 새 "내 테마"로 저장돼요.' : '';
-    $('themeEdit').hidden = false;
-    message('');
-  }
-  $('themeEditBtn').onclick = () => {
-    const t = themes();
-    openEditor(t.list().find((x) => x.key === t.active()));
-  };
-  $('themeNew').onclick = () => openEditor(null);
-  $('editCancel').onclick = () => {
-    $('themeEdit').hidden = true;
-  };
-  $('editSave').onclick = () => {
-    const checked = [...$('editList').querySelectorAll('input:checked')].map((b) => b.value);
-    if (!checked.length) {
-      $('editNote').textContent = '캐릭터를 하나 이상 골라 주세요.';
-      return;
-    }
-    // 원래 있던 캐릭터는 순서·이름·크기를 그대로 두고, 새로 고른 캐릭터를 뒤에 붙인다.
-    const kept = editing.cast.filter((c) => checked.includes(c.id));
-    const added = checked.filter((id) => !kept.some((c) => c.id === id)).map((id) => ({ id }));
-    try {
-      const r = themes().save({ name: $('editName').value, cast: [...kept, ...added] }, editing.key);
-      $('themeEdit').hidden = true;
-      message(`"${r.name}" 테마를 저장했어요.`);
-    } catch (e) {
-      $('editNote').textContent = e.message;
-    }
-    renderThemes();
-  };
-
   $('theme').onclick = () => {
     $('themeMenu').hidden = !$('themeMenu').hidden;
     message('');
     renderThemes();
   };
-  $('themeAdd').onclick = () => {
-    const code = window.prompt('받은 테마 코드를 붙여 넣으세요. (HW40T1.로 시작)');
-    if (!code) return;
+  // 테마 코드(캐릭터가 담긴 코드 포함)를 내 테마로 넣는다. 만들기·고치기는 테마 만들기 화면에서 한다.
+  async function addThemeCode(code) {
+    message('읽는 중…');
     try {
-      const { name, warnings } = themes().addCode(code);
-      message(`"${name}" 테마를 추가했어요.${warnings.length ? ` ${warnings.join(' ')}` : ''}`);
+      const r = await themes().addCode(code);
+      const extra = r.characters ? ` 캐릭터 ${r.characters}명도 함께 들어왔어요.` : '';
+      message(`"${r.name}" 테마를 넣었어요.${extra}${r.warnings.length ? ` ${r.warnings.join(' ')}` : ''}`);
+      $('themePaste').hidden = true;
+      $('themeCode').value = '';
     } catch (e) {
       message(e.message);
     }
     renderThemes();
+  }
+  $('themeAdd').onclick = () => {
+    $('themePaste').hidden = !$('themePaste').hidden;
+    message('');
+    if (!$('themePaste').hidden) $('themeCode').focus();
+  };
+  $('themeCancel').onclick = () => {
+    $('themePaste').hidden = true;
+  };
+  $('themeOk').onclick = () => addThemeCode($('themeCode').value);
+  $('themeFile').onclick = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt,text/plain';
+    input.onchange = async () => {
+      const file = input.files && input.files[0];
+      if (file) addThemeCode(await file.text());
+    };
+    input.click();
   };
   $('themeCopy').onclick = async () => {
-    const code = themes().code(themes().active());
+    const code = await themes().code(themes().active());
     try {
       await navigator.clipboard.writeText(code);
       message('지금 테마 코드를 복사했어요. 동료에게 보내 주세요.');

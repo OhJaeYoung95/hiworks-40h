@@ -34,8 +34,13 @@ test('로컬 빌드에는 자동 업데이트 주소를 넣지 않는다', () =>
 
 test('스크립트는 문법 오류 없이 하나로 합쳐진다', () => {
   const { script } = build({ version: '1.3.0', baseUrl: null, repository: undefined });
-  for (const file of ['config.js', 'calc.js', 'content.js', 'builtin-characters.js', 'sprite.js', 'pack-rules', 'themes.js', 'chars.js', 'packs', 'mascot.js']) assert.match(script, new RegExp(`// ---- ${file} ----`));
+  for (const file of ['version', 'config.js', 'calc.js', 'content.js', 'builtin-characters.js', 'sprite.js', 'pack-rules', 'themes.js', 'chars.js', 'packs', 'mascot.js']) assert.match(script, new RegExp(`// ---- ${file} ----`));
   assert.doesNotThrow(() => new vm.Script(script));
+});
+
+test('패널에 보여줄 버전이 스크립트에 들어간다', () => {
+  const { script } = build({ version: '1.7.12', baseUrl: null, repository: undefined });
+  assert.match(script, /globalThis\.HW40_VERSION = "1\.7\.12";/);
 });
 
 test('안내 페이지의 자리표시자가 모두 채워진다', () => {

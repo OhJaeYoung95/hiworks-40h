@@ -79,7 +79,47 @@
     throw new ThemeError(`테마 코드가 아니에요. "${CODE_PREFIX}"로 시작하는 코드를 붙여 넣어 주세요.`);
   }
 
-  const themes = { CODE_PREFIX, MAX_CAST, NAME_MAX, LABEL_MAX, SIZE_MIN, SIZE_MAX, ThemeError, normalizeTheme, encodeTheme, decodeTheme };
+  // ---------- 캐릭터를 담은 테마 코드 ----------
+  // 직접 넣은 캐릭터(my-…)를 쓰는 테마는 그 캐릭터의 그림까지 압축해 함께 담는다: HW40T2.<압축한 JSON>
+  // 기본·팩 캐릭터만 쓰면 짧은 HW40T1 코드를 그대로 쓴다.
+  const BUNDLE_PREFIX = 'HW40T2.';
+
+  async function pipe(bytes, stream) {
+    return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+  }
+  const bytesToB64 = (bytes) => {
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
+  const b64ToBytes = (text) => Uint8Array.from(atob(text.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+
+  // characters: 테마에 들어간 내 캐릭터 설정 목록 (없으면 HW40T1)
+  async function encodeThemeCode(theme, characters = []) {
+    const base = { name: theme.name, cast: theme.cast };
+    if (!characters.length) return encodeTheme(base);
+    const json = new TextEncoder().encode(JSON.stringify({ ...base, characters }));
+    return BUNDLE_PREFIX + bytesToB64(await pipe(json, new CompressionStream('deflate')));
+  }
+
+  // { theme: 테마 원본, characters: 함께 온 캐릭터 설정 목록 }
+  async function decodeThemeCode(code) {
+    const text = String(code || '').replace(/\s+/g, '');
+    if (!text.startsWith(BUNDLE_PREFIX)) return { theme: decodeTheme(code), characters: [] };
+    let raw;
+    try {
+      raw = JSON.parse(new TextDecoder().decode(await pipe(b64ToBytes(text.slice(BUNDLE_PREFIX.length)), new DecompressionStream('deflate'))));
+    } catch {
+      throw new ThemeError('테마 코드가 깨졌어요. 처음부터 끝까지 다 복사했는지 확인해 주세요.');
+    }
+    const characters = Array.isArray(raw && raw.characters) ? raw.characters : [];
+    return { theme: { name: raw && raw.name, cast: raw && raw.cast }, characters };
+  }
+
+  const themes = {
+    CODE_PREFIX, BUNDLE_PREFIX, MAX_CAST, NAME_MAX, LABEL_MAX, SIZE_MIN, SIZE_MAX, ThemeError,
+    normalizeTheme, encodeTheme, decodeTheme, encodeThemeCode, decodeThemeCode,
+  };
   if (typeof module !== 'undefined' && module.exports) module.exports = themes;
   else root.HW40_THEMES = themes;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
