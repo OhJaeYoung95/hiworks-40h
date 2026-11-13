@@ -152,3 +152,18 @@ test('바라보는 방향과 _left 그림에 따라 좌우를 뒤집는다', () 
   assert.strictEqual(r('walk', 0, -1), 1, '왼쪽용 그림은 뒤집지 않는다');
   assert.strictEqual(el.style.backgroundImage, 'url("L")');
 });
+
+test('잡기·떨어지기·착지는 그림이 없으면 비슷한 그림으로 대신한다', () => {
+  assert.deepStrictEqual(FALLBACKS.drag, ['drag', 'hop', 'idle']);
+  assert.deepStrictEqual(FALLBACKS.fall, ['fall', 'flee', 'hurry', 'walk', 'idle']);
+  assert.deepStrictEqual(FALLBACKS.land, ['land', 'hop', 'idle']);
+  const one = (n) => ({ frames: [n], fps: 1, loop: true, motion: 'none' });
+  const el = fakeEl();
+  const r = createSpriteRenderer({ facing: 'right', animations: { idle: one('I'), walk: one('W'), hop: one('H') } }, el);
+  r('drag', 0, 1);
+  assert.strictEqual(el.style.backgroundImage, 'url("H")');
+  r('fall', 100, 1);
+  assert.strictEqual(el.style.backgroundImage, 'url("W")');
+  const pack = normalizePack({ animations: { idle: { frames: ['a.png'] }, land: { frames: ['a.png'] } } }, 'x', fileMap(['a.png']));
+  assert.strictEqual(pack.animations.land.loop, false, '착지는 기본이 한 번 재생');
+});

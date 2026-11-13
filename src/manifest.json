@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "하이웍스 40시간 퇴근 계산기",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "주 40시간 기준으로 금요일 퇴근 가능 시각을 표시합니다.",
   "content_scripts": [
     {

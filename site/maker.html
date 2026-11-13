@@ -192,7 +192,7 @@
       <textarea id="code" rows="4" readonly hidden style="margin-top:10px" aria-label="캐릭터 코드"></textarea>
       <div class="row" id="codeActions" hidden><button id="copyCode">코드 복사</button><button id="saveFile">파일로 저장</button></div>
       <div class="msg" id="codeMsg"></div>
-      <p class="note">받은 사람은 하이웍스 패널의 <b>🎨 → ＋ 캐릭터 코드 넣기</b>(또는 <b>파일에서 넣기</b>)를 누르면 돼요. 같은 캐릭터를 고쳐서 다시 보내면 받은 사람 화면에서도 새 그림으로 바뀌어요.</p>
+      <p class="note">받은 사람은 하이웍스 패널의 <b>🎨 → ＋ 캐릭터 코드 넣기</b>(또는 <b>파일에서 넣기</b>)로 캐릭터 목록에 넣고, <b>✎ 이 테마 고치기</b>에서 골라 테마에 넣으면 화면에 나와요. 같은 캐릭터를 고쳐서 다시 보내면 받은 사람 화면에서도 새 그림으로 바뀌어요.</p>
     </section>
 
     <section>
@@ -229,6 +229,9 @@
     { key: 'meet', title: '인사할 때', desc: '다른 캐릭터와 마주쳤을 때' },
     { key: 'flee', title: '도망칠 때', desc: '괴물에게 쫓길 때' },
     { key: 'chase', title: '쫓아갈 때', desc: '"쫓아다니기"를 켰을 때만 써요' },
+    { key: 'drag', title: '잡혀 있을 때', desc: '마우스로 끌어 들었을 때. 없으면 폴짝 그림' },
+    { key: 'fall', title: '떨어질 때', desc: '놓아서 "으아아아" 떨어질 때. 없으면 도망·서두르기 그림' },
+    { key: 'land', title: '착지할 때', desc: '바닥에 "콩" 닿을 때 한 번' },
   ];
   const SPEEDS = [['3', '천천히'], ['6', '보통'], ['10', '빠르게'], ['16', '아주 빠르게']];
   const MOTIONS = [['none', '없음'], ['bob', '통통'], ['breathe', '숨쉬기'], ['shake', '덜덜'], ['wobble', '흔들흔들']];
@@ -498,7 +501,7 @@
     }, 500);
   }
 
-  const TRIGGER_LABEL = { idle: '서 있기', walk: '걷기', celebrate: '축하', rest: '퇴근 후', hurry: '서두르기', hop: '폴짝', click: '누르기', meet: '인사', flee: '도망', chase: '쫓기' };
+  const TRIGGER_LABEL = { idle: '서 있기', walk: '걷기', celebrate: '축하', rest: '퇴근 후', hurry: '서두르기', hop: '폴짝', click: '누르기', meet: '인사', flee: '도망', chase: '쫓기', drag: '잡히기', fall: '떨어지기', land: '착지' };
   const MOVING = { walk: 1, hurry: 2.7, flee: 2.7, chase: 2 };
   let stage = null;
 
@@ -519,7 +522,7 @@
     stage = { fig, bubble: actor.querySelector('.bubble'), render: createSpriteRenderer(pack, actor.querySelector('.sprite')),
       x: keep.x, dir: keep.dir, state: keep.state, base: keep.state, until: 0, sayUntil: 0 };
     const specials = Object.keys(pack.animations).filter((n) => pack.animations[n].special);
-    const names = ['idle', 'walk', 'celebrate', 'rest', 'hurry', 'hop', 'click', 'meet', 'flee', ...(pack.chaser ? ['chase'] : [])];
+    const names = ['idle', 'walk', 'celebrate', 'rest', 'hurry', 'hop', 'click', 'meet', 'flee', ...(pack.chaser ? ['chase'] : []), 'drag', 'fall', 'land'];
     for (const n of [...names, ...specials]) {
       const b = document.createElement('button');
       b.dataset.trigger = n;
@@ -543,12 +546,13 @@
     const special = pack.animations[name] && pack.animations[name].special;
     stage.bubble.hidden = true;
     stage.sayUntil = 0;
-    if (name === 'hop' || name === 'click') {
+    if (name === 'hop' || name === 'click' || name === 'land') {
       stage.state = name;
       stage.until = now + 600;
       stage.fig.classList.add('hop');
       setTimeout(() => stage && stage.fig.classList.remove('hop'), 600);
       if (name === 'click') say('3시간 12분 남았어', 2000);
+      if (name === 'land') say('콩!', 1200);
     } else if (special) {
       stage.state = name;
       stage.until = now + special.ms;
@@ -556,7 +560,7 @@
     } else {
       stage.state = stage.base = name;
       stage.until = 0;
-      const lines = { celebrate: pack.lines.celebrate, rest: pack.lines.rest, flee: '으악!', chase: '어흥!', meet: pack.lines.meet.default || '안녕!' };
+      const lines = { celebrate: pack.lines.celebrate, rest: pack.lines.rest, flee: '으악!', chase: '어흥!', meet: pack.lines.meet.default || '안녕!', drag: '어어?!', fall: '으아아아!' };
       if (lines[name]) say(lines[name], name === 'celebrate' || name === 'rest' ? 1e9 : 2000);
     }
     stage.fig.classList.toggle('party', stage.state === 'celebrate');

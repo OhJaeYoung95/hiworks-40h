@@ -13,6 +13,10 @@
     hop: ['hop', 'idle'],
     click: ['click', 'hop', 'idle'],
     meet: ['meet', 'idle'],
+    // 마우스로 잡아 들었을 때 → 놓아서 떨어질 때 → 바닥에 닿았을 때
+    drag: ['drag', 'hop', 'idle'],
+    fall: ['fall', 'flee', 'hurry', 'walk', 'idle'],
+    land: ['land', 'hop', 'idle'],
   };
 
   // 팩 애니메이션 재생기. 상태(트리거)를 받아 맞는 프레임을 보여준다.

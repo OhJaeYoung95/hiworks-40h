@@ -10,11 +10,14 @@
   const CHASE_COOLDOWN_MS = 40000;
   const CHASE_GIVE_UP_MS = 7000;
   const FLEE_MS = 2600;
+  const GRAVITY = 2600; // 떨어질 때 가속도 (px/초²)
+  const DRAG_START_PX = 5; // 이만큼 끌어야 드래그로 본다 (그보다 작으면 클릭)
+  const SCREAM_HEIGHT = 50; // 이보다 높은 데서 떨어지면 비명을 지른다
+  const LAND_MS = 420;
+  const MENU_IDLE_MS = 5000;
   const STORAGE_KEY = 'hw40-mascot-off';
-  // 사용자가 고른 그림. 이 브라우저의 localStorage에만 저장되고 어디로도 보내지 않는다.
-  const CUSTOM_KEY = 'hw40-custom-image';
-  const CUSTOM_TARGET = 'mong';
-  const CUSTOM_MAX_PX = 160;
+  // 예전 "몽실이 그림 바꾸기"가 남긴 그림. 기능을 뺐으니 저장 공간만 비운다.
+  const OLD_CUSTOM_KEY = 'hw40-custom-image';
   // 테마: 내가 추가한 테마 목록과 지금 고른 테마. 역시 이 브라우저에만 저장된다.
   const THEMES_KEY = 'hw40-themes';
   const ACTIVE_KEY = 'hw40-theme';
@@ -43,6 +46,26 @@
     .motion-shake { animation: tremble .1s linear infinite alternate; }
     .motion-wobble { animation: wobble .8s ease-in-out infinite alternate; }
     @keyframes wobble { from { transform: rotate(-6deg); } to { transform: rotate(6deg); } }
+    /* 잡혀서 대롱대롱 → 버둥거리며 떨어짐 → 착지할 때 납작 */
+    svg, #sprite { touch-action: none; }
+    .dragged svg, .dragged #jump { animation: dangle .45s ease-in-out infinite alternate; transform-origin: 50% 0; }
+    .falling svg, .falling #jump { animation: flail .09s linear infinite alternate; transform-origin: 50% 50%; }
+    .land svg, .land #jump { animation: squash ${LAND_MS}ms cubic-bezier(.3,1.5,.5,1); transform-origin: 50% 100%; }
+    @keyframes dangle { from { transform: rotate(-14deg); } to { transform: rotate(14deg); } }
+    @keyframes flail { from { transform: rotate(-9deg) scaleY(1.06); } to { transform: rotate(9deg) scaleY(1.06); } }
+    @keyframes squash { 0% { transform: scale(1.35, .62); } 45% { transform: scale(.88, 1.14); } 75% { transform: scale(1.06, .95); } 100% { transform: none; } }
+    /* 클릭 메뉴: 캐릭터 둘레에 동그란 말풍선 버튼 */
+    #ring { position: absolute; left: 50%; width: 0; height: 0; }
+    #ring button { position: absolute; width: 38px; height: 38px; margin: -19px 0 0 -19px; padding: 0; border-radius: 50%;
+      display: grid; place-items: center; background: #fff; border: 1.5px solid #6b4a2b; color: #4a3520;
+      box-shadow: 0 2px 6px rgba(0,0,0,.2); font: 17px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif;
+      cursor: pointer; pointer-events: auto; animation: pop .26s cubic-bezier(.3,1.6,.5,1) backwards; }
+    #ring button:hover, #ring button:focus-visible { background: #fff4dc; transform: scale(1.15); outline: none; }
+    #ring button::after { content: attr(data-label); position: absolute; top: 100%; margin-top: 3px; white-space: nowrap;
+      padding: 1px 6px; border-radius: 8px; background: #4a3520; color: #fff; font: 600 11px 'Malgun Gothic', sans-serif;
+      opacity: 0; transition: opacity .12s; pointer-events: none; }
+    #ring button:hover::after, #ring button:focus-visible::after { opacity: 1; }
+    @keyframes pop { from { transform: translate(var(--fx), var(--fy)) scale(.2); opacity: 0; } }
     ${ART_CSS}
     #bubble { position: absolute; bottom: ${WIDTH + 6}px; padding: 4px 9px; white-space: nowrap;
       background: #fff; color: #4a3520; border: 1.5px solid #6b4a2b; border-radius: 10px;
@@ -100,22 +123,6 @@
     }
   }
 
-  function readCustom() {
-    try {
-      return localStorage.getItem(CUSTOM_KEY);
-    } catch {
-      return null;
-    }
-  }
-  function writeCustom(url) {
-    try {
-      if (url) localStorage.setItem(CUSTOM_KEY, url);
-      else localStorage.removeItem(CUSTOM_KEY);
-      return true;
-    } catch {
-      return false;
-    }
-  }
   function readJson(key, fallback) {
     try {
       const v = JSON.parse(localStorage.getItem(key));
@@ -134,39 +141,15 @@
     }
   }
 
-  const customArt = (url) => `
-    <g id="body"><image href="${url}" x="-8" y="-14" width="80" height="78" preserveAspectRatio="xMidYMax meet"/></g>`;
-
-  // 고른 그림을 작게 줄여 PNG 데이터 URL로 만든다.
-  function shrinkImage(file) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      const src = URL.createObjectURL(file);
-      img.onload = () => {
-        const scale = Math.min(1, CUSTOM_MAX_PX / Math.max(img.width, img.height));
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        URL.revokeObjectURL(src);
-        resolve(canvas.toDataURL('image/png'));
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(src);
-        reject(new Error('image load failed'));
-      };
-      img.src = src;
-    });
-  }
-
   const maxX = (w = WIDTH) => Math.max(0, window.innerWidth - w);
   // 패널에 가리지 않고 멈춰 있을 수 있는 오른쪽 한계
   const clearMaxX = (w = WIDTH) => Math.max(0, window.innerWidth - w - PANEL_CLEARANCE);
 
-  const artFor = (def) => {
-    const url = def.id === CUSTOM_TARGET ? readCustom() : null;
-    return url ? customArt(url) : def.art;
-  };
+  try {
+    localStorage.removeItem(OLD_CUSTOM_KEY);
+  } catch {
+    // 저장소를 못 쓰면 지울 것도 없다.
+  }
 
   // look: 테마가 정한 이름(name)과 크기(size)
   function createMascot(def, index, count, look = {}) {
@@ -179,15 +162,18 @@
     const label = String(look.name || def.label).replace(/[<>&"]/g, '');
     const figure = def.pack
       ? `<div id="jump"><div id="sprite" role="img" aria-label="${label}" title="${label}"></div></div>`
-      : `<svg viewBox="0 0 64 64" width="${W}" height="${W}" role="img" aria-label="${label}"><title>${label}</title>${artFor(def)}${CONFETTI}</svg>`;
+      : `<svg viewBox="0 0 64 64" width="${W}" height="${W}" role="img" aria-label="${label}"><title>${label}</title>${def.art}${CONFETTI}</svg>`;
     shadow.innerHTML = `
       <style>${STYLE}</style>
       <div id="bubble" hidden style="bottom:${W + 6}px"></div>
-      <div id="flip" style="width:${W}px;height:${W}px">${figure}</div>`;
+      <div id="flip" style="width:${W}px;height:${W}px">${figure}</div>
+      <div id="ring" hidden style="bottom:${Math.round(W / 2)}px"></div>`;
     const flip = shadow.getElementById('flip');
     const bubble = shadow.getElementById('bubble');
     const svg = shadow.querySelector('svg');
     const sprite = shadow.getElementById('sprite');
+    const ring = shadow.getElementById('ring');
+    const figureEl = svg || sprite;
     const render = def.pack ? createSpriteRenderer(def.pack, sprite) : null;
     if (def.pack && !def.pack.bounce) flip.classList.add('nobounce');
 
@@ -212,7 +198,15 @@
       chaseUntil: 0,
       meetUntil: 0,
       hopKind: 'hop',
+      y: 0, // 바닥에서 떠 있는 높이 (잡혀 있거나 떨어질 때)
+      vy: 0,
+      dragging: false,
+      falling: false,
+      landUntil: 0,
+      menuOpen: false,
     };
+    // 지금 땅에서 평소처럼 움직일 수 있는지 (만남·쫓기 판정에 쓴다)
+    m.free = () => !m.dragging && !m.falling && m.y === 0 && !m.menuOpen;
 
     m.hop = (kind = 'hop') => {
       if (m.hopping) return;
@@ -233,10 +227,6 @@
       bubble.style.left = leftAligned ? `${m.bubbleOffset}px` : 'auto';
       bubble.style.right = leftAligned ? 'auto' : `${m.bubbleOffset}px`;
     }
-
-    m.redraw = () => {
-      if (svg) svg.innerHTML = `<title>${label}</title>${artFor(def)}${CONFETTI}`;
-    };
 
     m.say = (text, ms, align = null, offset = 0) => {
       m.bubbleAlign = align;
@@ -303,19 +293,138 @@
       }
     }
 
-    (svg || sprite).addEventListener('click', () => {
+    const remainingText = () => {
       const r = api.latest;
       const left = r && typeof r.remaining === 'number' ? Math.max(0, r.remaining) : null;
-      const text = left === null ? '안녕!' : left === 0 ? '40시간 달성!' : `${formatDuration(left)} 남았어`;
-      m.say(text, 3000);
-      m.hop('click');
+      return left === null ? '안녕!' : left === 0 ? '40시간 달성!' : `${formatDuration(left)} 남았어`;
+    };
+    const pick = (list) => list[Math.floor(Math.random() * list.length)];
+
+    // ---------- 클릭 메뉴 ----------
+    // 캐릭터를 누르면 위쪽 반원으로 동그란 말풍선 버튼이 펼쳐진다.
+    let menuTimer = 0;
+    function menuActions() {
+      const skitNames = Object.keys(def.skits);
+      return [
+        { icon: '⏱', label: '남은 시간', run: () => m.say(remainingText(), 3000) },
+        { icon: '🤸', label: '점프', run: () => { m.hop('click'); m.say(pick(['얍!', '홉!', '뿅!']), 1200); } },
+        { icon: '💗', label: '쓰다듬기', run: () => { m.say(pick(['헤헤', '좋아~', '♥', '기분 좋다']), 1800); m.hop('hop'); } },
+        {
+          icon: '🍪',
+          label: '간식 주기',
+          run: () => {
+            if (def.skits.eat) m.playSkit('eat');
+            else m.say(pick(['냠냠!', '맛있다!', '고마워!']), 1800);
+          },
+        },
+        ...(skitNames.length ? [{ icon: '⭐', label: '특기', run: () => m.playSkit(pick(skitNames)) }] : []),
+      ];
+    }
+    m.closeMenu = () => {
+      if (!m.menuOpen) return;
+      m.menuOpen = false;
+      ring.hidden = true;
+      ring.replaceChildren();
+      clearTimeout(menuTimer);
+    };
+    function openMenu() {
+      m.menuOpen = true;
+      m.skit = null;
+      m.chase = null;
+      bubble.hidden = true;
+      m.spokenUntil = 0;
+      const actions = menuActions();
+      const radius = Math.max(46, W / 2 + 26);
+      // 위쪽 반원(왼쪽 → 오른쪽)에 고르게 놓는다. 화면 가장자리에서는 버튼을 안쪽으로 당긴다.
+      const centerX = m.x + W / 2;
+      ring.replaceChildren(
+        ...actions.map((a, i) => {
+          const angle = Math.PI - (Math.PI * (i + 0.5)) / actions.length;
+          let dx = Math.cos(angle) * radius;
+          const dy = -Math.sin(angle) * radius;
+          dx = Math.min(Math.max(dx, 24 - centerX), window.innerWidth - 24 - centerX);
+          const b = document.createElement('button');
+          b.textContent = a.icon;
+          b.dataset.label = a.label;
+          b.setAttribute('aria-label', a.label);
+          b.style.left = `${dx}px`;
+          b.style.top = `${dy}px`;
+          b.style.setProperty('--fx', `${-dx}px`);
+          b.style.setProperty('--fy', `${-dy}px`);
+          b.style.animationDelay = `${i * 30}ms`;
+          b.onclick = (e) => {
+            e.stopPropagation();
+            m.closeMenu();
+            a.run();
+          };
+          return b;
+        })
+      );
+      ring.hidden = false;
+      clearTimeout(menuTimer);
+      menuTimer = setTimeout(m.closeMenu, MENU_IDLE_MS);
+    }
+    m.openMenu = openMenu;
+
+    // ---------- 드래그 ----------
+    // 누른 채 끌면 마우스를 따라오고, 놓으면 "으아아아" 떨어져서 "콩" 착지한다. 조금만 움직였으면 클릭으로 본다.
+    let press = null;
+    figureEl.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      press = { id: e.pointerId, sx: e.clientX, sy: e.clientY, gx: e.clientX - m.x, gy: window.innerHeight - e.clientY - m.y };
+      try {
+        figureEl.setPointerCapture(e.pointerId);
+      } catch {
+        // 포인터 캡처를 못 해도 같은 요소 위에서는 동작한다.
+      }
     });
+    figureEl.addEventListener('pointermove', (e) => {
+      if (!press || e.pointerId !== press.id) return;
+      if (!m.dragging) {
+        if (Math.hypot(e.clientX - press.sx, e.clientY - press.sy) < DRAG_START_PX) return;
+        m.closeMenu();
+        m.dragging = true;
+        m.falling = false;
+        m.skit = null;
+        m.chase = null;
+        m.fleeUntil = 0;
+        m.say(pick(['어어?!', '앗!', '놔줘~', '어디 가?']), 1500);
+      }
+      m.x = Math.min(Math.max(e.clientX - press.gx, 0), maxX(W));
+      m.y = Math.min(Math.max(window.innerHeight - e.clientY - press.gy, 0), window.innerHeight - W);
+    });
+    const release = (e) => {
+      if (!press || e.pointerId !== press.id) return;
+      const wasDrag = m.dragging;
+      press = null;
+      if (!wasDrag) {
+        if (e.type === 'pointercancel') return;
+        if (m.menuOpen) m.closeMenu();
+        else openMenu();
+        return;
+      }
+      m.drop();
+    };
+    // 놓으면 떨어진다. 이미 땅이면 바로 착지한다.
+    m.drop = () => {
+      m.dragging = false;
+      m.falling = true;
+      m.vy = 0;
+      if (m.y > SCREAM_HEIGHT) m.say('으아아아!', 5000);
+    };
+    figureEl.addEventListener('pointerup', release);
+    figureEl.addEventListener('pointercancel', release);
 
     // 축하·휴식 때 서는 자리. 겹치지 않게 패널 왼쪽 공간을 나눠 쓴다.
     const slot = () => (clearMaxX(W) * (index + 1)) / (count + 1);
 
     // 지금 상황에 맞는 애니메이션 트리거 이름
     function stateFor(now, mood, moving) {
+      if (m.dragging) return 'drag';
+      if (m.falling) return 'fall';
+      if (now < m.landUntil) return 'land';
+      if (m.menuOpen) return 'idle';
       if (mood === 'celebrate' || mood === 'rest') return m.hopping ? m.hopKind : moving ? 'hurry' : mood;
       if (mood === 'hurry') return 'hurry';
       if (now < m.fleeUntil) return 'flee';
@@ -326,7 +435,47 @@
       return moving ? 'walk' : 'idle';
     }
 
+    // 잡혀 있거나 떨어지는 중이거나 막 착지했을 때: 평소 움직임 대신 이것만 한다.
+    function updateAir(now, dt) {
+      if (m.falling) {
+        m.vy += GRAVITY * dt;
+        m.y = Math.max(0, m.y - m.vy * dt);
+        if (m.y === 0) {
+          m.falling = false;
+          m.landUntil = now + LAND_MS;
+          m.say('콩!', 1300);
+          flip.classList.remove('land');
+          void flip.offsetWidth; // 같은 애니메이션을 다시 시작하게 한다
+          flip.classList.add('land');
+          setTimeout(() => flip.classList.remove('land'), LAND_MS);
+          m.action = 'idle';
+          m.actionUntil = now + LAND_MS + 600;
+        }
+      }
+      flip.classList.toggle('dragged', m.dragging);
+      flip.classList.toggle('falling', m.falling);
+      flip.classList.toggle('walk', m.falling);
+      flip.classList.toggle('fast', m.falling);
+      flip.classList.toggle('idle', !m.falling);
+      flip.classList.remove('party', 'hop');
+      for (const name of Object.keys(def.skits)) flip.classList.remove(`skit-${name}`);
+      host.style.transform = `translate(${m.x}px, ${-m.y}px)`;
+      const facing = render ? render(stateFor(now, 'normal', false), now, m.dir) : m.dir;
+      flip.style.transform = `scaleX(${facing})`;
+      if (now < m.spokenUntil) showBubble(bubble.textContent);
+      else bubble.hidden = true;
+    }
+
     m.update = (now, dt, mood) => {
+      if (m.dragging || m.falling || now < m.landUntil) {
+        updateAir(now, dt);
+        return;
+      }
+      if (m.menuOpen) {
+        // 메뉴가 열려 있는 동안은 제자리에 서 있는다.
+        m.action = 'idle';
+        m.actionUntil = now + 1000;
+      }
       let moving = false;
       let speed = def.speed;
       let target = null;
@@ -357,6 +506,11 @@
           if (now > m.chaseUntil || m.chase.host.hidden) {
             m.chase = null;
             m.say('칫…', 1500);
+            m.pause(1500, now);
+          } else if (!m.chase.free()) {
+            // 잡으려던 상대가 들려 올라갔다.
+            m.chase = null;
+            m.say('어라?', 1500);
             m.pause(1500, now);
           } else if (Math.abs(m.chase.x - m.x) < ((W + m.chase.w) / 2) * 0.7) {
             m.chase.flee(m, now);
@@ -396,7 +550,7 @@
       for (const name of Object.keys(def.skits)) {
         flip.classList.toggle(`skit-${name}`, m.skit === name);
       }
-      host.style.transform = `translateX(${m.x}px)`;
+      host.style.transform = `translate(${m.x}px, 0)`;
       const facing = render ? render(stateFor(now, mood, moving), now, m.dir) : m.dir;
       flip.style.transform = `scaleX(${facing})`;
 
@@ -436,8 +590,8 @@
     knownIds = new Set(CATALOG.keys());
   }
 
-  // 기본 테마: 배포된 기본 캐릭터 + 내 캐릭터
-  const defaultTheme = () => ({ key: 'default', name: '기본', source: 'default', cast: [...CHARACTERS, ...myDefs].map((d) => ({ id: d.id })) });
+  // 기본 테마: 배포된 기본 캐릭터 그대로 (내 캐릭터는 테마를 고쳐서 넣는다)
+  const defaultTheme = () => ({ key: 'default', name: '기본', source: 'default', cast: CHARACTERS.map((d) => ({ id: d.id })) });
   const sharedThemes = (PACKS.themes || []).map((t) => ({ key: `shared:${t.id}`, name: t.name, source: 'shared', cast: t.cast }));
 
   function myThemes() {
@@ -456,6 +610,11 @@
   }
   const allThemes = () => [defaultTheme(), ...sharedThemes, ...myThemes()];
   const findTheme = (key) => allThemes().find((t) => t.key === key) || defaultTheme();
+
+  const savedThemes = () => {
+    const saved = readJson(THEMES_KEY, []);
+    return Array.isArray(saved) ? saved.filter((t) => t && typeof t.key === 'string') : [];
+  };
 
   let mascots = [];
   let off = readOff();
@@ -492,21 +651,25 @@
       spawn(theme);
       return warnings;
     },
+    // 내 테마로 저장하고 바로 적용한다. key가 내 테마면 그 테마를 고치고, 아니면 새로 만든다.
+    save(raw, key) {
+      const { theme, warnings } = THEME_RULES.normalizeTheme(raw, knownIds);
+      const list = savedThemes();
+      const old = key && key.startsWith('mine:') ? list.find((t) => t.key === key.slice(5)) : null;
+      const savedKey = old ? old.key : Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+      const next = old ? list.map((t) => (t.key === savedKey ? { key: savedKey, ...theme } : t)) : [...list, { key: savedKey, ...theme }];
+      if (!writeValue(THEMES_KEY, next)) throw new THEME_RULES.ThemeError('브라우저 저장소를 쓸 수 없어 테마를 저장하지 못했어요.');
+      api.themes.apply(`mine:${savedKey}`);
+      return { key: `mine:${savedKey}`, name: theme.name, warnings };
+    },
     // 공유 코드를 내 테마로 추가하고 바로 적용한다.
     addCode(code) {
-      const { theme, warnings } = THEME_RULES.normalizeTheme(THEME_RULES.decodeTheme(code), knownIds);
-      const saved = readJson(THEMES_KEY, []);
-      const list = Array.isArray(saved) ? saved : [];
-      const key = Date.now().toString(36);
-      list.push({ key, ...theme });
-      if (!writeValue(THEMES_KEY, list)) throw new THEME_RULES.ThemeError('브라우저 저장소를 쓸 수 없어 테마를 저장하지 못했어요.');
-      api.themes.apply(`mine:${key}`);
-      return { key: `mine:${key}`, name: theme.name, warnings };
+      return api.themes.save(THEME_RULES.decodeTheme(code));
     },
     remove(key) {
       const target = myThemes().find((t) => t.key === key);
       if (!target) return;
-      writeValue(THEMES_KEY, readJson(THEMES_KEY, []).filter((t) => t.key !== target.savedKey));
+      writeValue(THEMES_KEY, savedThemes().filter((t) => t.key !== target.savedKey));
       if (activeKey === key) api.themes.apply('default');
     },
     code: (key) => {
@@ -533,20 +696,28 @@
       if (!writeValue(MY_CHARS_KEY, next)) {
         throw new CHAR_RULES.CharError('브라우저 저장 공간이 모자라 저장하지 못했어요. 안 쓰는 내 캐릭터를 지우거나 그림을 줄여 주세요.');
       }
+      // 캐릭터 목록에만 넣는다. 테마에 넣는 건 🎨 → 테마 고치기에서 고른다.
+      // 이미 테마에 들어 있던 캐릭터를 새 그림으로 바꾼 경우에는 화면을 다시 그린다.
       loadMyChars();
-      // 기본 테마를 쓰고 있으면 새 캐릭터가 바로 나온다. 다른 테마라도 지금 화면에 함께 보여준다.
-      const theme = findTheme(activeKey);
-      spawn(theme.cast.some((c) => c.id === pack.id) ? theme : { ...theme, cast: [...theme.cast, { id: pack.id }] });
+      spawn(findTheme(activeKey));
       const m = mascots.find((x) => x.id === pack.id);
       if (m) {
-        m.say('안녕!', 2000);
+        m.say('짠!', 2000);
         m.hop();
       }
-      return { id: pack.id, name: pack.label, replaced };
+      return { id: pack.id, name: pack.label, replaced, shown: Boolean(m) };
     },
     remove(id) {
       writeValue(MY_CHARS_KEY, savedChars().filter((c) => c && c.id !== id));
+      // 내 테마에서도 빼고, 그 캐릭터만 있던 테마는 지운다.
+      writeValue(
+        THEMES_KEY,
+        savedThemes()
+          .map((t) => ({ ...t, cast: (t.cast || []).filter((c) => (typeof c === 'string' ? c : c && c.id) !== id) }))
+          .filter((t) => t.cast.length)
+      );
       loadMyChars();
+      if (!findTheme(activeKey) || findTheme(activeKey).key !== activeKey) activeKey = 'default';
       spawn(findTheme(activeKey));
     },
     code: (id) => {
@@ -560,40 +731,10 @@
     writeOff(off);
   };
 
-  api.pickCustomImage = () => {
-    const target = mascots.find((m) => m.id === CUSTOM_TARGET && !m.def.pack);
-    const redrawAll = () => mascots.filter((m) => m.id === CUSTOM_TARGET).forEach((m) => m.redraw());
-    if (!target) {
-      window.alert('그림을 바꿀 몽실이가 없어요. (캐릭터 팩으로 바뀌었거나 꺼져 있어요)');
-      return;
-    }
-    const resetPrompt = '원래 몽실이로 되돌릴까요? 취소를 누르면 새 그림을 고릅니다.';
-    if (readCustom() && window.confirm(resetPrompt)) {
-      writeCustom(null);
-      redrawAll();
-      return;
-    }
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = async () => {
-      const file = input.files && input.files[0];
-      if (!file) return;
-      try {
-        const url = await shrinkImage(file);
-        if (!writeCustom(url)) {
-          window.alert('브라우저 저장소를 쓸 수 없어 그림을 저장하지 못했어요.');
-          return;
-        }
-        redrawAll();
-        target.say('짠!', 2000);
-        target.hop();
-      } catch {
-        window.alert('그림을 읽지 못했어요. PNG나 JPG 파일을 골라 주세요.');
-      }
-    };
-    input.click();
-  };
+  // 메뉴 바깥을 누르면 열린 메뉴를 닫는다.
+  window.addEventListener('pointerdown', (e) => {
+    for (const m of mascots) if (m.menuOpen && !e.composedPath().includes(m.host)) m.closeMenu();
+  }, true);
 
   let nextMeetAt = 0;
   function checkMeetings(now) {
@@ -602,7 +743,7 @@
       for (let j = i + 1; j < mascots.length; j++) {
         const [a, b] = [mascots[i], mascots[j]];
         const reach = (a.w + b.w) / 2;
-        if (a.skit || b.skit || a.chaser || b.chaser || Math.abs(a.x - b.x) > reach * 0.8) continue;
+        if (a.skit || b.skit || a.chaser || b.chaser || !a.free() || !b.free() || Math.abs(a.x - b.x) > reach * 0.8) continue;
         const pair = MEET_LINES[[a.id, b.id].sort().join('+')] || {};
         // 정해진 짝 대사가 없으면 팩의 lines.meet (상대 id 또는 default)를 쓴다.
         const lineOf = (me, other) => pair[me.id] || (me.def.meet && (me.def.meet[other.id] || me.def.meet.default));
@@ -629,8 +770,8 @@
   function checkChase(now) {
     if (now < nextChaseAt) return;
     nextChaseAt = now + CHASE_COOLDOWN_MS * (0.7 + Math.random() * 0.6);
-    for (const chaser of mascots.filter((m) => m.chaser && !m.chase)) {
-      const others = mascots.filter((m) => !m.chaser && now >= m.fleeUntil);
+    for (const chaser of mascots.filter((m) => m.chaser && !m.chase && m.free())) {
+      const others = mascots.filter((m) => !m.chaser && now >= m.fleeUntil && m.free());
       if (!others.length) return;
       const prey = others.reduce((a, b) => (Math.abs(a.x - chaser.x) <= Math.abs(b.x - chaser.x) ? a : b));
       chaser.startChase(prey, now);

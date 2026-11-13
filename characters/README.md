@@ -70,7 +70,7 @@ characters/
 | `frames` | | 프레임 이미지 목록. 한 장이면 정지 그림(또는 움직이는 GIF·SVG) |
 | `sheet` + `count` | | 가로로 이어 붙인 스프라이트 시트와 칸 수. `frames`와 둘 중 하나만 |
 | `fps` | 8 | 초당 프레임 |
-| `loop` | true | 반복 여부 (`hop`, `click`은 기본이 한 번 재생) |
+| `loop` | true | 반복 여부 (`hop`, `click`, `land`는 기본이 한 번 재생) |
 | `motion` | none | 엔진이 덧붙이는 움직임: `bob`(통통), `breathe`(숨쉬기), `shake`(떨림), `wobble`(흔들흔들) |
 | `special` | false | true면 그 캐릭터만의 특수 애니메이션. 쉬는 중에 가끔 재생 |
 | `duration` | 3000 | 특수: 재생 시간(ms) |
@@ -95,6 +95,9 @@ characters/
 | `hop` | 가끔 폴짝 뛸 때, 놀랐을 때 | `idle` |
 | `click` | 캐릭터를 눌렀을 때 | `hop` → `idle` |
 | 특수 이름 | 쉬는 중 가끔 (`special: true`) | `idle` |
+| `drag` | 마우스로 잡아 들었을 때 | `hop` → `idle` |
+| `fall` | 놓아서 떨어질 때 ("으아아아!") | `flee` → `hurry` → `walk` → `idle` |
+| `land` | 바닥에 착지할 때 ("콩!", 한 번 재생) | `hop` → `idle` |
 | `meet` | 다른 캐릭터와 마주쳐 대화할 때 | `idle` |
 | `walk` | 돌아다닐 때 | `idle` |
 | `idle` | 멈춰 있을 때 | (필수) |

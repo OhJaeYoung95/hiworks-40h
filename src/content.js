@@ -22,7 +22,7 @@
       .row { display: flex; justify-content: space-between; color: #556; font-variant-numeric: tabular-nums; }
       .pill { padding: 6px 12px; background: #fff; border: 1px solid #d5dbe5; border-radius: 16px;
         box-shadow: 0 2px 8px rgba(0,0,0,.15); color: #222; font: 600 13px 'Malgun Gothic', sans-serif; }
-      .menu { margin: 8px 0 10px; padding: 8px; background: #f5f7fa; border-radius: 6px; }
+      .menu { max-height: 60vh; overflow-y: auto; margin: 8px 0 10px; padding: 8px; background: #f5f7fa; border-radius: 6px; }
       .menu-title { font-size: 12px; color: #667; margin-bottom: 4px; }
       .theme { display: flex; align-items: center; gap: 4px; }
       .theme .pick { flex: 1; text-align: left; font-size: 13px; color: #222; padding: 3px 4px; border-radius: 4px; }
@@ -39,15 +39,25 @@
       .char span { flex: 1; }
       .char button { font-size: 12px; }
       .empty-note { font-size: 12px; color: #889; padding: 2px 4px; }
+      .editor { margin-top: 6px; padding: 6px; background: #fff; border: 1px solid #d5dbe5; border-radius: 6px; }
+      .editor input[type="text"] { width: 100%; box-sizing: border-box; font: 13px 'Malgun Gothic', sans-serif; padding: 3px 6px; border: 1px solid #ccd3df; border-radius: 4px; }
+      .edit-list { max-height: 170px; overflow-y: auto; margin-top: 6px; }
+      .edit-list label { display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 1px 2px; cursor: pointer; }
       textarea { width: 100%; box-sizing: border-box; height: 56px; font: 11px Consolas, monospace; margin-top: 4px; }
     </style>
     <div class="panel" id="panel">
-      <div class="head"><span id="title"></span><span><button id="pet" title="캐릭터 켜기/끄기">🐾</button><button id="theme" title="테마·내 캐릭터">🎨</button><button id="pic" title="몽실이를 내 그림으로 바꾸기 (이 브라우저에만 저장)">🖼</button><button id="min" title="접기">–</button></span></div>
+      <div class="head"><span id="title"></span><span><button id="pet" title="캐릭터 켜기/끄기">🐾</button><button id="theme" title="테마·내 캐릭터">🎨</button><button id="min" title="접기">–</button></span></div>
       <div class="menu" id="themeMenu" hidden>
         <div class="menu-title">캐릭터 테마</div>
         <div id="themeList" role="radiogroup" aria-label="캐릭터 테마"></div>
         <div class="menu-actions">
-          <button id="themeAdd">＋ 코드로 추가</button><button id="themeCopy">코드 복사</button><a id="themeMake" target="_blank" rel="noopener" hidden>테마 만들기 ↗</a>
+          <button id="themeEditBtn">✎ 이 테마 고치기</button><button id="themeNew">＋ 새 테마</button><button id="themeAdd">테마 코드 넣기</button><button id="themeCopy">코드 복사</button><a id="themeMake" target="_blank" rel="noopener" hidden>테마 만들기 ↗</a>
+        </div>
+        <div class="editor" id="themeEdit" hidden>
+          <input type="text" id="editName" maxlength="20" aria-label="테마 이름" placeholder="테마 이름">
+          <div class="edit-list" id="editList"></div>
+          <div class="menu-actions"><button id="editSave">저장</button><button id="editCancel">취소</button></div>
+          <div class="msg" id="editNote"></div>
         </div>
         <div class="msg" id="themeMsg" hidden></div>
         <div class="menu-title sub">내 캐릭터 <span style="color:#99a">(이 브라우저에만 저장)</span></div>
@@ -76,7 +86,6 @@
   $('min').onclick = () => setCollapsed(true);
   $('pill').onclick = () => setCollapsed(false);
   $('pet').onclick = () => globalThis.HW40.toggleMascot();
-  $('pic').onclick = () => globalThis.HW40.pickCustomImage();
 
   // ---------- 테마 목록 ----------
   // 기본 · 공용(저장소 themes/) · 내 테마(공유 코드로 추가). 고른 테마는 이 브라우저에만 저장된다.
@@ -186,7 +195,11 @@
   async function addCharCode(code) {
     try {
       const r = await chars().addCode(code);
-      charMessage(r.replaced ? `"${r.name}" 캐릭터를 새 그림으로 바꿨어요.` : `"${r.name}" 캐릭터를 넣었어요!`);
+      charMessage(
+        r.replaced
+          ? `"${r.name}" 캐릭터를 새 그림으로 바꿨어요.`
+          : `"${r.name}" 캐릭터를 목록에 넣었어요. 위의 ✎ 이 테마 고치기(또는 ＋ 새 테마)에서 골라 넣으세요.`
+      );
       $('charPaste').hidden = true;
       $('charCode').value = '';
     } catch (e) {
@@ -212,6 +225,65 @@
       if (file) addCharCode(await file.text());
     };
     input.click();
+  };
+
+  // ---------- 테마 고치기 ----------
+  // 캐릭터를 골라 내 테마로 저장한다. 기본·공용 테마는 그대로 두고 새 내 테마로 저장된다.
+  let editing = null; // { key, cast }
+  function openEditor(theme) {
+    const t = themes();
+    editing = { key: theme && theme.source === 'mine' ? theme.key : null, cast: theme ? theme.cast : [] };
+    $('editName').value = theme ? (theme.source === 'mine' ? theme.name : `${theme.name} (내 버전)`.slice(0, 20)) : '새 테마';
+    const picked = new Set(editing.cast.map((c) => c.id));
+    const mine = new Set(chars() ? chars().list().map((c) => c.id) : []);
+    $('editList').replaceChildren(
+      ...t.catalog().map((c) => {
+        const row = document.createElement('label');
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.value = c.id;
+        box.checked = picked.has(c.id);
+        const name = document.createElement('span');
+        name.textContent = c.label;
+        row.append(box, name);
+        if (mine.has(c.id)) {
+          const tag = document.createElement('span');
+          tag.className = 'tag';
+          tag.textContent = '내 캐릭터';
+          row.appendChild(tag);
+        }
+        return row;
+      })
+    );
+    $('editNote').textContent = editing.key ? '' : theme ? '기본·공용 테마는 그대로 두고, 고친 내용은 새 "내 테마"로 저장돼요.' : '';
+    $('themeEdit').hidden = false;
+    message('');
+  }
+  $('themeEditBtn').onclick = () => {
+    const t = themes();
+    openEditor(t.list().find((x) => x.key === t.active()));
+  };
+  $('themeNew').onclick = () => openEditor(null);
+  $('editCancel').onclick = () => {
+    $('themeEdit').hidden = true;
+  };
+  $('editSave').onclick = () => {
+    const checked = [...$('editList').querySelectorAll('input:checked')].map((b) => b.value);
+    if (!checked.length) {
+      $('editNote').textContent = '캐릭터를 하나 이상 골라 주세요.';
+      return;
+    }
+    // 원래 있던 캐릭터는 순서·이름·크기를 그대로 두고, 새로 고른 캐릭터를 뒤에 붙인다.
+    const kept = editing.cast.filter((c) => checked.includes(c.id));
+    const added = checked.filter((id) => !kept.some((c) => c.id === id)).map((id) => ({ id }));
+    try {
+      const r = themes().save({ name: $('editName').value, cast: [...kept, ...added] }, editing.key);
+      $('themeEdit').hidden = true;
+      message(`"${r.name}" 테마를 저장했어요.`);
+    } catch (e) {
+      $('editNote').textContent = e.message;
+    }
+    renderThemes();
   };
 
   $('theme').onclick = () => {

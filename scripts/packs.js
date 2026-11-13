@@ -12,8 +12,8 @@
   };
   const MOTIONS = ['none', 'bob', 'breathe', 'shake', 'wobble'];
   const FACINGS = ['right', 'left', 'front'];
-  const TRIGGERS = ['idle', 'walk', 'hurry', 'flee', 'chase', 'celebrate', 'rest', 'hop', 'click', 'meet'];
-  const ONE_SHOT = ['hop', 'click'];
+  const TRIGGERS = ['idle', 'walk', 'hurry', 'flee', 'chase', 'celebrate', 'rest', 'hop', 'click', 'meet', 'drag', 'fall', 'land'];
+  const ONE_SHOT = ['hop', 'click', 'land'];
   const ID_RE = /^[a-z][a-z0-9-]*$/;
   const NAME_RE = /^[a-z][a-z0-9_-]*$/;
   const WARN_BYTES = 3 * 1024 * 1024;
