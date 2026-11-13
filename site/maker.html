@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>캐릭터 만들기</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --surface: #ffffff; --surface-2: #f0eee9; --text: #2b2723; --muted: #756d64;
+    --line: #e2ded6; --accent: #6b5bd6; --accent-text: #ffffff; --ok: #2f8a4c; --warn: #a86a00; --err: #c23b32;
+    --stage: #fbfaf7; --ground: #d9d3c7; --drop: #f3f1fb; color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1b1a; --surface: #262523; --surface-2: #302e2b; --text: #ece8e2; --muted: #a59d93;
+      --line: #3b3935; --accent: #9d90f0; --accent-text: #1c1b1a; --ok: #6cc58a; --warn: #e0a84a; --err: #f07b72;
+      --stage: #22211f; --ground: #4a463f; --drop: #2b2838; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1b1a; --surface: #262523; --surface-2: #302e2b; --text: #ece8e2; --muted: #a59d93;
+    --line: #3b3935; --accent: #9d90f0; --accent-text: #1c1b1a; --ok: #6cc58a; --warn: #e0a84a; --err: #f07b72;
+    --stage: #22211f; --ground: #4a463f; --drop: #2b2838; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; }
+  header { padding: 18px 16px 14px; border-bottom: 1px solid var(--line); background: var(--surface); }
+  header .in { max-width: 1180px; margin: 0 auto; }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; }
+  .steps { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; font-size: 14px; }
+  .steps b { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--accent-text); font-size: 12px; margin-right: 6px; }
+  button, select, input, textarea { font: inherit; color: var(--text); }
+  button, select { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: transparent; font-weight: 600; }
+  button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: transparent; }
+  button:disabled { opacity: .45; cursor: default; }
+  input[type="text"], textarea { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; width: 100%; min-width: 0; }
+  textarea { font-family: Consolas, monospace; font-size: 12px; resize: vertical; }
+  main { max-width: 1180px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }
+  @media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); } }
+  section { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+  section h2 { font-size: 16px; margin: 0 0 4px; }
+  section > .desc { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  .col { display: grid; gap: 16px; min-width: 0; }
+  .side { position: sticky; top: 12px; }
+  @media (max-width: 900px) { .side { position: static; } }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 16px; }
+  .field { display: grid; gap: 4px; }
+  .field > span { font-size: 13px; color: var(--muted); }
+  .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .inline input[type="range"] { flex: 1; min-width: 100px; }
+  .check { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
+  .check small { display: block; color: var(--muted); font-size: 12px; }
+
+  /* 상황별 그림 칸 */
+  .slot { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--surface-2); display: grid; gap: 8px; }
+  .slot + .slot { margin-top: 10px; }
+  .slot-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .slot-head b { font-size: 15px; }
+  .slot-head small { color: var(--muted); font-size: 12px; }
+  .need { color: var(--err); font-size: 12px; font-weight: 600; }
+  .drop { border: 2px dashed var(--line); border-radius: 10px; background: var(--drop); min-height: 84px; padding: 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .drop.over { border-color: var(--accent); }
+  .drop .hint { color: var(--muted); font-size: 13px; padding: 0 6px; }
+  .frame { position: relative; width: 68px; height: 68px; border-radius: 8px; background: var(--stage) center bottom / contain no-repeat; border: 1px solid var(--line); }
+  .frame .no { position: absolute; left: 3px; top: 1px; font-size: 11px; color: var(--muted); }
+  .frame button { position: absolute; right: -6px; top: -6px; width: 22px; height: 22px; padding: 0; border-radius: 50%; font-size: 12px; line-height: 1; }
+  .opts { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 13px; color: var(--muted); }
+  .opts select { padding: 3px 8px; font-size: 13px; }
+  .more { margin-top: 10px; }
+  details > summary { cursor: pointer; color: var(--accent); font-weight: 600; margin: 4px 0; }
+
+  /* 샘플 */
+  #samples { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+  .sample { display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); cursor: pointer; }
+  .sample:hover { border-color: var(--accent); }
+  .sample i { width: 64px; height: 64px; background: var(--stage) center bottom / contain no-repeat; border-radius: 8px; }
+  .sample span { font-size: 13px; font-weight: 600; }
+
+  /* 미리 보기 */
+  #stage { position: relative; height: 200px; background: var(--stage); border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+  #stage::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 20px; background: var(--ground); }
+  #actor { position: absolute; left: 0; bottom: 20px; }
+  #stage .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 14px; text-align: center; padding: 20px; }
+  .bubble { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 4px 9px; background: #fff; color: #4a3520; border: 1.5px solid #6b4a2b; border-radius: 10px; font-weight: 600; font-size: 12px; }
+  .triggers { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .triggers button { padding: 4px 10px; font-size: 13px; }
+  .msg { font-size: 13px; margin-top: 8px; }
+  .msg.err { color: var(--err); } .msg.ok { color: var(--ok); } .msg.warn { color: var(--warn); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .note { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+
+  /* 엔진과 같은 움직임 */
+  .figure { position: relative; }
+  .jump, .sprite { width: 100%; height: 100%; }
+  .sprite { background-repeat: no-repeat; background-position: center bottom; background-size: contain; transform-origin: bottom center; }
+  .hop:not(.nobounce) .jump { animation: hop .6s cubic-bezier(.3,.7,.4,1); }
+  .party:not(.nobounce) .jump { animation: hop .6s cubic-bezier(.3,.7,.4,1) infinite; }
+  .motion-bob { animation: bob .25s ease-in-out infinite alternate; }
+  .motion-breathe { animation: breathe 1.6s ease-in-out infinite alternate; }
+  .motion-shake { animation: tremble .1s linear infinite alternate; }
+  .motion-wobble { animation: wobble .8s ease-in-out infinite alternate; }
+  @keyframes bob { from { transform: translateY(0); } to { transform: translateY(-2px); } }
+  @keyframes breathe { from { transform: translateY(0); } to { transform: translateY(1px); } }
+  @keyframes tremble { from { transform: translateX(-.7px); } to { transform: translateX(.7px); } }
+  @keyframes wobble { from { transform: rotate(-6deg); } to { transform: rotate(6deg); } }
+  @keyframes hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-26px); } }
+</style>
+</head>
+<body>
+<header>
+  <div class="in">
+    <h1>캐릭터 만들기</h1>
+    <p>그림을 넣어 하이웍스 화면을 돌아다닐 캐릭터를 만들고, 코드로 동료에게 보내세요. GitHub 가입은 필요 없어요.</p>
+    <div class="steps">
+      <span><b>1</b>상황별로 그림 넣기</span>
+      <span><b>2</b>오른쪽에서 움직임 확인</span>
+      <span><b>3</b>코드 복사해서 보내기</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="col">
+    <section>
+      <h2>샘플에서 시작하기 <small style="font-weight:400;color:var(--muted)">(선택)</small></h2>
+      <p class="desc">기본 캐릭터를 불러와 그림이나 말을 바꿔 보세요. 어떤 칸에 어떤 그림이 들어가는지 보는 예시로도 좋아요. 원래 캐릭터는 그대로 있고, 고친 캐릭터는 새 캐릭터로 추가돼요.</p>
+      <div id="samples"></div>
+    </section>
+
+    <section>
+      <h2>캐릭터 정보</h2>
+      <p class="desc">이름과 크기를 정해요. 나머지는 그대로 둬도 괜찮아요.</p>
+      <div class="grid2">
+        <label class="field"><span>이름</span><input type="text" id="label" maxlength="20" placeholder="예: 구름이"></label>
+        <div class="field"><span>크기</span><div class="inline"><input type="range" id="size" min="32" max="160" step="4" value="72"><b id="sizeV">72px</b></div></div>
+        <div class="field"><span>걷는 빠르기</span><div class="inline"><input type="range" id="speed" min="10" max="80" step="2" value="30"><b id="speedV">보통</b></div></div>
+        <div class="field"><span>그림 속 캐릭터가 바라보는 쪽</span>
+          <div class="inline" id="facing">
+            <button data-v="right" aria-pressed="true">오른쪽</button><button data-v="left">왼쪽</button><button data-v="front">정면</button>
+          </div>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:12px">
+        <label class="check"><input type="checkbox" id="bounce" checked><span>폴짝·축하할 때 통통 튀기<small>그림 자체가 뛰는 그림이면 끄세요</small></span></label>
+        <label class="check"><input type="checkbox" id="chaser"><span>가끔 다른 캐릭터 쫓아다니기<small>괴물 역할. 잡히면 상대가 도망가요</small></span></label>
+      </div>
+    </section>
+
+    <section>
+      <h2>상황별 그림</h2>
+      <p class="desc">칸에 그림을 끌어다 놓거나 <b>그림 고르기</b>를 누르세요. 여러 장을 넣으면 차례로 넘어가며 움직여요. <b>서 있을 때</b> 한 칸만 채워도 돼요. 빈 칸은 비슷한 그림으로 대신 나와요.</p>
+      <div id="slots"></div>
+      <details class="more">
+        <summary>다른 상황도 그림 넣기</summary>
+        <div id="moreSlots" style="margin-top:10px"></div>
+      </details>
+    </section>
+
+    <section>
+      <h2>특별 동작 <small style="font-weight:400;color:var(--muted)">(선택)</small></h2>
+      <p class="desc">쉬는 동안 가끔 하는 이 캐릭터만의 동작이에요. 예: 커피 마시기, 춤추기</p>
+      <div id="specials"></div>
+      <div class="row"><button id="addSpecial">＋ 특별 동작 추가</button></div>
+    </section>
+
+    <section>
+      <h2>말풍선</h2>
+      <p class="desc">비워 두면 기본 말이 나와요.</p>
+      <div class="grid2">
+        <label class="field"><span>40시간 채워서 축하할 때</span><input type="text" id="lineCelebrate" maxlength="30" placeholder="퇴근!"></label>
+        <label class="field"><span>퇴근 후 쉴 때</span><input type="text" id="lineRest" maxlength="30" placeholder="Zz"></label>
+        <label class="field"><span>다른 캐릭터를 만났을 때</span><input type="text" id="lineMeet" maxlength="30" placeholder="안녕!"></label>
+      </div>
+    </section>
+  </div>
+
+  <div class="col side">
+    <section>
+      <h2>미리 보기</h2>
+      <div id="stage"><div class="empty" id="stageEmpty">"서 있을 때" 그림을 넣으면 여기서 움직여요.</div><div id="actor" hidden></div></div>
+      <div class="triggers" id="triggers"></div>
+      <div class="msg" id="checkMsg"></div>
+    </section>
+
+    <section>
+      <h2>코드 만들기</h2>
+      <p class="desc">코드를 복사해 메신저로 보내세요. 길면 <b>파일로 저장</b>해서 파일을 보내도 돼요.</p>
+      <button class="primary" id="makeCode" style="width:100%">캐릭터 코드 만들기</button>
+      <textarea id="code" rows="4" readonly hidden style="margin-top:10px" aria-label="캐릭터 코드"></textarea>
+      <div class="row" id="codeActions" hidden><button id="copyCode">코드 복사</button><button id="saveFile">파일로 저장</button></div>
+      <div class="msg" id="codeMsg"></div>
+      <p class="note">받은 사람은 하이웍스 패널의 <b>🎨 → ＋ 캐릭터 코드 넣기</b>(또는 <b>파일에서 넣기</b>)를 누르면 돼요. 같은 캐릭터를 고쳐서 다시 보내면 받은 사람 화면에서도 새 그림으로 바뀌어요.</p>
+    </section>
+
+    <section>
+      <h2>받은 캐릭터 고치기</h2>
+      <textarea id="importCode" rows="2" placeholder="HW40C1.… 코드를 붙여 넣으세요" aria-label="불러올 코드"></textarea>
+      <div class="row"><button id="importBtn">불러오기</button><button id="importFile">파일에서 불러오기</button><button id="newChar">새로 만들기</button></div>
+      <div class="msg" id="importMsg"></div>
+      <p class="note">그림은 이 브라우저 안에서만 처리되고 어디로도 올라가지 않아요. 직접 그렸거나 써도 되는 그림만 넣어 주세요.</p>
+    </section>
+  </div>
+</main>
+
+<script src="studio/pack-rules.js"></script>
+<script src="studio/sprite.js"></script>
+<script src="studio/chars.js"></script>
+<script src="studio/samples.js"></script>
+<script>
+(function () {
+  const CHARS = window.HW40_CHARS;
+  const { createSpriteRenderer } = window.HW40_SPRITE;
+  const $ = (id) => document.getElementById(id);
+  const DRAFT_KEY = 'hw40-maker-draft';
+  const MAX_SIDE = 200; // 그림을 이 크기(px)까지 줄여 코드를 짧게 한다
+  const GIF_MAX = 300 * 1024;
+
+  const SLOTS = [
+    { key: 'idle', title: '서 있을 때', desc: '멈춰 있을 때. 꼭 필요해요', main: true },
+    { key: 'walk', title: '걸을 때', desc: '돌아다닐 때', main: true },
+    { key: 'celebrate', title: '축하할 때', desc: '금요일에 40시간을 채웠을 때', main: true },
+    { key: 'rest', title: '퇴근 후 쉴 때', desc: '퇴근한 뒤', main: true },
+    { key: 'hurry', title: '서두를 때', desc: '퇴근 1시간 전부터. 없으면 걷는 그림' },
+    { key: 'hop', title: '폴짝 뛸 때', desc: '가끔 뛰거나 놀랐을 때' },
+    { key: 'click', title: '눌렀을 때', desc: '마우스로 캐릭터를 눌렀을 때' },
+    { key: 'meet', title: '인사할 때', desc: '다른 캐릭터와 마주쳤을 때' },
+    { key: 'flee', title: '도망칠 때', desc: '괴물에게 쫓길 때' },
+    { key: 'chase', title: '쫓아갈 때', desc: '"쫓아다니기"를 켰을 때만 써요' },
+  ];
+  const SPEEDS = [['3', '천천히'], ['6', '보통'], ['10', '빠르게'], ['16', '아주 빠르게']];
+  const MOTIONS = [['none', '없음'], ['bob', '통통'], ['breathe', '숨쉬기'], ['shake', '덜덜'], ['wobble', '흔들흔들']];
+
+  const blank = () => ({
+    id: CHARS.newId(), label: '', size: 72, speed: 30, facing: 'right', bounce: true, chaser: false,
+    lines: { celebrate: '', rest: '', meet: '' },
+    slots: {}, // key → { frames: [dataUrl], fps, motion }
+    specials: [], // { frames, fps, motion, say, seconds, moving }
+  });
+  let draft = blank();
+
+  // ---------- 그림 읽기 ----------
+  const readDataUrl = (file) => new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+  async function imageToDataUrl(file) {
+    if (!/^image\/(png|jpeg|webp|gif|bmp|svg\+xml)$/.test(file.type)) throw new Error(`"${file.name}"은 그림 파일이 아니에요. (PNG, JPG, WebP, GIF, SVG)`);
+    if (file.type === 'image/svg+xml') {
+      if (file.size > GIF_MAX) throw new Error(`"${file.name}"이 너무 커요. SVG는 300KB까지 넣을 수 있어요.`);
+      return readDataUrl(file);
+    }
+    if (file.type === 'image/gif') {
+      // 움직이는 GIF는 그대로 넣는다 (줄이면 움직임이 사라진다).
+      if (file.size > GIF_MAX) throw new Error(`"${file.name}"이 너무 커요 (${Math.round(file.size / 1024)}KB). 움직이는 GIF는 300KB까지 넣을 수 있어요.`);
+      return readDataUrl(file);
+    }
+    const src = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = () => reject(new Error(`"${file.name}"을 읽지 못했어요.`));
+        i.src = src;
+      });
+      const scale = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.width * scale));
+      c.height = Math.max(1, Math.round(img.height * scale));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const webp = c.toDataURL('image/webp', 0.9);
+      return webp.startsWith('data:image/webp') ? webp : c.toDataURL('image/png');
+    } finally {
+      URL.revokeObjectURL(src);
+    }
+  }
+  async function addFiles(target, files) {
+    const errors = [];
+    for (const f of [...files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))) {
+      try {
+        target.frames.push(await imageToDataUrl(f));
+      } catch (e) {
+        errors.push(e.message);
+      }
+    }
+    changed();
+    if (errors.length) showCheck(errors.join(' '), 'err');
+  }
+  const pickFiles = (onFiles) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/webp,image/gif,image/svg+xml';
+    input.multiple = true;
+    input.onchange = () => input.files.length && onFiles(input.files);
+    input.click();
+  };
+
+  // ---------- 그림 칸 ----------
+  const opt = (pairs, value) => pairs.map(([v, t]) => `<option value="${v}"${String(value) === v ? ' selected' : ''}>${t}</option>`).join('');
+
+  function frameBox(target, title, desc, need) {
+    const box = document.createElement('div');
+    box.className = 'slot';
+    box.innerHTML = `
+      <div class="slot-head"><span><b></b> <small></small></span>${need && !target.frames.length ? '<span class="need">필수</span>' : ''}</div>
+      <div class="drop"></div>
+      <div class="opts">
+        <button class="pick">그림 고르기</button>
+        <label>넘어가는 빠르기 <select class="fps">${opt(SPEEDS, target.fps)}</select></label>
+        <label>움직임 <select class="motion">${opt(MOTIONS, target.motion)}</select></label>
+      </div>`;
+    box.querySelector('b').textContent = title;
+    box.querySelector('small').textContent = desc;
+    const drop = box.querySelector('.drop');
+    if (!target.frames.length) drop.innerHTML = '<span class="hint">여기에 그림을 끌어다 놓으세요 (여러 장 가능)</span>';
+    target.frames.forEach((url, i) => {
+      const f = document.createElement('div');
+      f.className = 'frame';
+      f.style.backgroundImage = `url("${url}")`;
+      f.innerHTML = `<span class="no">${i + 1}</span><button title="빼기" aria-label="${i + 1}번 그림 빼기">✕</button>`;
+      f.querySelector('button').onclick = () => {
+        target.frames.splice(i, 1);
+        changed();
+      };
+      drop.appendChild(f);
+    });
+    drop.ondragover = (e) => {
+      e.preventDefault();
+      drop.classList.add('over');
+    };
+    drop.ondragleave = () => drop.classList.remove('over');
+    drop.ondrop = (e) => {
+      e.preventDefault();
+      drop.classList.remove('over');
+      addFiles(target, e.dataTransfer.files);
+    };
+    box.querySelector('.pick').onclick = () => pickFiles((files) => addFiles(target, files));
+    box.querySelector('.fps').onchange = (e) => {
+      target.fps = Number(e.target.value);
+      changed(false);
+    };
+    box.querySelector('.motion').onchange = (e) => {
+      target.motion = e.target.value;
+      changed(false);
+    };
+    return box;
+  }
+
+  const slotOf = (key) => (draft.slots[key] = draft.slots[key] || { frames: [], fps: 6, motion: key === 'idle' ? 'breathe' : key === 'walk' ? 'bob' : 'none' });
+
+  function renderSlots() {
+    $('slots').replaceChildren(...SLOTS.filter((s) => s.main).map((s) => frameBox(slotOf(s.key), s.title, s.desc, s.key === 'idle')));
+    $('moreSlots').replaceChildren(...SLOTS.filter((s) => !s.main && (s.key !== 'chase' || draft.chaser)).map((s) => frameBox(slotOf(s.key), s.title, s.desc)));
+    $('specials').replaceChildren(
+      ...draft.specials.map((sp, i) => {
+        const box = frameBox(sp, `특별 동작 ${i + 1}`, '쉬는 중 가끔', false);
+        const extra = document.createElement('div');
+        extra.className = 'opts';
+        extra.innerHTML = `
+          <label style="flex:1;min-width:160px">말풍선 <input type="text" class="say" maxlength="30" placeholder="예: 커피 한 잔~"></label>
+          <label>길이 <select class="sec">${opt([...new Set([2, 3, 5, 8, sp.seconds])].sort((a, b) => a - b).map((n) => [String(n), `${n}초`]), sp.seconds)}</select></label>
+          <label><input type="checkbox" class="moving"${sp.moving ? ' checked' : ''}> 하면서 달리기</label>
+          <button class="del">이 동작 빼기</button>`;
+        const say = extra.querySelector('.say');
+        say.value = sp.say || '';
+        say.oninput = () => {
+          sp.say = say.value;
+          changed(false);
+        };
+        extra.querySelector('.sec').onchange = (e) => {
+          sp.seconds = Number(e.target.value);
+          changed(false);
+        };
+        extra.querySelector('.moving').onchange = (e) => {
+          sp.moving = e.target.checked;
+          changed(false);
+        };
+        extra.querySelector('.del').onclick = () => {
+          draft.specials.splice(i, 1);
+          changed();
+        };
+        box.appendChild(extra);
+        return box;
+      })
+    );
+  }
+  $('addSpecial').onclick = () => {
+    draft.specials.push({ frames: [], fps: 6, motion: 'none', say: '', seconds: 3, moving: false });
+    changed();
+  };
+
+  // ---------- 정보 입력 ----------
+  const speedName = (v) => (v < 22 ? '느릿느릿' : v < 40 ? '보통' : v < 60 ? '빠르게' : '아주 빠르게');
+  function renderInfo() {
+    $('label').value = draft.label;
+    $('size').value = draft.size;
+    $('sizeV').textContent = `${draft.size}px`;
+    $('speed').value = draft.speed;
+    $('speedV').textContent = speedName(draft.speed);
+    for (const b of document.querySelectorAll('#facing button')) b.setAttribute('aria-pressed', String(b.dataset.v === draft.facing));
+    $('bounce').checked = draft.bounce;
+    $('chaser').checked = draft.chaser;
+    $('lineCelebrate').value = draft.lines.celebrate;
+    $('lineRest').value = draft.lines.rest;
+    $('lineMeet').value = draft.lines.meet;
+  }
+  $('label').oninput = () => { draft.label = $('label').value; changed(false); };
+  $('size').oninput = () => { draft.size = Number($('size').value); $('sizeV').textContent = `${draft.size}px`; changed(false); };
+  $('speed').oninput = () => { draft.speed = Number($('speed').value); $('speedV').textContent = speedName(draft.speed); changed(false); };
+  for (const b of document.querySelectorAll('#facing button')) {
+    b.onclick = () => { draft.facing = b.dataset.v; renderInfo(); changed(false); };
+  }
+  $('bounce').onchange = () => { draft.bounce = $('bounce').checked; changed(false); };
+  $('chaser').onchange = () => { draft.chaser = $('chaser').checked; changed(); };
+  for (const [id, key] of [['lineCelebrate', 'celebrate'], ['lineRest', 'rest'], ['lineMeet', 'meet']]) {
+    $(id).oninput = () => { draft.lines[key] = $(id).value; changed(false); };
+  }
+
+  // ---------- 캐릭터 설정으로 바꾸기 ----------
+  function toSpec() {
+    const animations = {};
+    for (const [key, s] of Object.entries(draft.slots)) {
+      if (!s.frames.length || (key === 'chase' && !draft.chaser)) continue;
+      animations[key] = { frames: s.frames, fps: s.fps, motion: s.motion };
+    }
+    draft.specials.forEach((sp, i) => {
+      if (!sp.frames.length) return;
+      animations[`sp${i + 1}`] = { frames: sp.frames, fps: sp.fps, motion: sp.motion, special: true, duration: sp.seconds * 1000, say: sp.say || '', sayAt: sp.sayAt === undefined ? 300 : Math.min(sp.sayAt, sp.seconds * 1000 - 500), moving: sp.moving };
+    });
+    const lines = {};
+    if (draft.lines.celebrate) lines.celebrate = draft.lines.celebrate;
+    if (draft.lines.rest) lines.rest = draft.lines.rest;
+    // 샘플에서 온 "상대별 인사"는 그대로 두고, 화면에서 적은 인사는 모든 상대에게 쓴다.
+    lines.meet = { ...(draft.meetOthers || {}), ...(draft.lines.meet ? { default: draft.lines.meet } : {}) };
+    return {
+      id: draft.id, label: draft.label.trim() || '내 캐릭터', size: draft.size, speed: draft.speed,
+      facing: draft.facing, bounce: draft.bounce, chaser: draft.chaser, lines, animations,
+    };
+  }
+
+  // 받은 코드의 설정을 화면 입력으로 되돌린다.
+  function fromSpec(spec) {
+    const d = blank();
+    d.id = spec.id;
+    d.label = spec.label || '';
+    d.size = spec.size || 72;
+    d.speed = spec.speed || 30;
+    d.facing = spec.facing || 'right';
+    d.bounce = spec.bounce !== false;
+    d.chaser = Boolean(spec.chaser);
+    const lines = spec.lines || {};
+    d.lines = { celebrate: lines.celebrate || '', rest: lines.rest || '', meet: (lines.meet && lines.meet.default) || '' };
+    d.meetOthers = {};
+    for (const [k, v] of Object.entries(lines.meet || {})) if (k !== 'default' && typeof v === 'string') d.meetOthers[k] = v;
+    for (const [name, a] of Object.entries(spec.animations || {})) {
+      if (!Array.isArray(a.frames)) continue; // 시트 그림은 이 화면에서 고칠 수 없다
+      const base = { frames: [...a.frames], fps: a.fps || 6, motion: a.motion || 'none' };
+      if (a.special) d.specials.push({ ...base, say: a.say || '', seconds: Math.max(1, Math.round((a.duration || 3000) / 1000)), sayAt: a.sayAt, moving: Boolean(a.moving) });
+      else d.slots[name] = base;
+    }
+    return d;
+  }
+
+  // ---------- 확인과 미리 보기 ----------
+  function showCheck(text, kind) {
+    $('checkMsg').className = `msg ${kind || ''}`;
+    $('checkMsg').textContent = text;
+  }
+
+  let pack = null;
+  let saveTimer = 0;
+  function changed(rerender = true) {
+    if (rerender) renderSlots();
+    $('code').hidden = $('codeActions').hidden = true;
+    $('codeMsg').textContent = '';
+    try {
+      pack = CHARS.normalizeCharacter(toSpec());
+      const kb = Math.round(JSON.stringify(toSpec()).length / 1024);
+      showCheck(`준비됐어요 · 크기 약 ${kb}KB`, 'ok');
+    } catch (e) {
+      pack = null;
+      const missingIdle = !(draft.slots.idle && draft.slots.idle.frames.length);
+      showCheck(missingIdle ? '"서 있을 때" 그림을 넣어 주세요.' : e.message, missingIdle ? 'warn' : 'err');
+    }
+    $('makeCode').disabled = !pack;
+    setupStage();
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      } catch {
+        // 저장 공간이 모자라면 임시 저장만 건너뛴다.
+      }
+    }, 500);
+  }
+
+  const TRIGGER_LABEL = { idle: '서 있기', walk: '걷기', celebrate: '축하', rest: '퇴근 후', hurry: '서두르기', hop: '폴짝', click: '누르기', meet: '인사', flee: '도망', chase: '쫓기' };
+  const MOVING = { walk: 1, hurry: 2.7, flee: 2.7, chase: 2 };
+  let stage = null;
+
+  function setupStage() {
+    const actor = $('actor');
+    $('stageEmpty').hidden = Boolean(pack);
+    actor.hidden = !pack;
+    $('triggers').replaceChildren();
+    if (!pack) {
+      stage = null;
+      return;
+    }
+    const keep = stage ? { x: stage.x, dir: stage.dir, state: stage.base } : { x: 30, dir: 1, state: 'walk' };
+    actor.innerHTML = '<div class="bubble" hidden></div><div class="figure"><div class="jump"><div class="sprite"></div></div></div>';
+    const fig = actor.querySelector('.figure');
+    fig.style.width = fig.style.height = `${pack.size}px`;
+    fig.classList.toggle('nobounce', !pack.bounce);
+    stage = { fig, bubble: actor.querySelector('.bubble'), render: createSpriteRenderer(pack, actor.querySelector('.sprite')),
+      x: keep.x, dir: keep.dir, state: keep.state, base: keep.state, until: 0, sayUntil: 0 };
+    const specials = Object.keys(pack.animations).filter((n) => pack.animations[n].special);
+    const names = ['idle', 'walk', 'celebrate', 'rest', 'hurry', 'hop', 'click', 'meet', 'flee', ...(pack.chaser ? ['chase'] : [])];
+    for (const n of [...names, ...specials]) {
+      const b = document.createElement('button');
+      b.dataset.trigger = n;
+      b.textContent = TRIGGER_LABEL[n] || `★ 특별 동작 ${n.slice(2)}`;
+      b.onclick = () => trigger(n);
+      $('triggers').appendChild(b);
+    }
+    trigger(stage.base);
+  }
+
+  function say(text, ms) {
+    if (!text) return;
+    stage.bubble.textContent = text;
+    stage.bubble.hidden = false;
+    stage.sayUntil = performance.now() + ms;
+  }
+
+  function trigger(name) {
+    if (!stage) return;
+    const now = performance.now();
+    const special = pack.animations[name] && pack.animations[name].special;
+    stage.bubble.hidden = true;
+    stage.sayUntil = 0;
+    if (name === 'hop' || name === 'click') {
+      stage.state = name;
+      stage.until = now + 600;
+      stage.fig.classList.add('hop');
+      setTimeout(() => stage && stage.fig.classList.remove('hop'), 600);
+      if (name === 'click') say('3시간 12분 남았어', 2000);
+    } else if (special) {
+      stage.state = name;
+      stage.until = now + special.ms;
+      setTimeout(() => { if (stage && stage.state === name) say(special.text, special.ms - special.sayAt); }, special.sayAt);
+    } else {
+      stage.state = stage.base = name;
+      stage.until = 0;
+      const lines = { celebrate: pack.lines.celebrate, rest: pack.lines.rest, flee: '으악!', chase: '어흥!', meet: pack.lines.meet.default || '안녕!' };
+      if (lines[name]) say(lines[name], name === 'celebrate' || name === 'rest' ? 1e9 : 2000);
+    }
+    stage.fig.classList.toggle('party', stage.state === 'celebrate');
+    for (const b of document.querySelectorAll('#triggers button')) b.setAttribute('aria-pressed', String(b.dataset.trigger === name));
+  }
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min((now - last) / 1000, 0.1);
+    last = now;
+    if (stage && pack) {
+      if (stage.until && now > stage.until) {
+        stage.until = 0;
+        trigger(stage.base);
+      }
+      if (stage.sayUntil && now > stage.sayUntil) stage.bubble.hidden = true;
+      const special = pack.animations[stage.state] && pack.animations[stage.state].special;
+      const factor = MOVING[stage.state] || (special && special.moving ? 2.7 : 0);
+      if (factor) {
+        const max = Math.max(0, $('stage').clientWidth - pack.size);
+        stage.x += stage.dir * pack.speed * factor * dt;
+        if (stage.x <= 0) { stage.x = 0; stage.dir = 1; }
+        if (stage.x >= max) { stage.x = max; stage.dir = -1; }
+      }
+      $('actor').style.transform = `translateX(${stage.x}px)`;
+      stage.fig.style.transform = `scaleX(${stage.render(stage.state, now, stage.dir)})`;
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ---------- 코드 ----------
+  const fileName = () => `${(draft.label.trim() || '내 캐릭터').replace(/[\\/:*?"<>|]/g, '')}-캐릭터코드.txt`;
+  $('makeCode').onclick = async () => {
+    if (!pack) return;
+    try {
+      const code = await CHARS.encodeCharacter(toSpec());
+      $('code').value = code;
+      $('code').hidden = $('codeActions').hidden = false;
+      $('codeMsg').className = 'msg ok';
+      $('codeMsg').textContent = `코드를 만들었어요 (${Math.round(code.length / 1024)}KB).${code.length > 60000 ? ' 메신저에 안 들어가면 파일로 저장해서 보내 주세요.' : ''}`;
+    } catch (e) {
+      $('codeMsg').className = 'msg err';
+      $('codeMsg').textContent = `코드를 만들지 못했어요: ${e.message}`;
+    }
+  };
+  $('copyCode').onclick = async () => {
+    try {
+      await navigator.clipboard.writeText($('code').value);
+      $('copyCode').textContent = '복사했어요';
+      setTimeout(() => { $('copyCode').textContent = '코드 복사'; }, 1500);
+    } catch {
+      $('code').select();
+    }
+  };
+  $('saveFile').onclick = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([$('code').value], { type: 'text/plain' }));
+    a.download = fileName();
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
+  async function importCode(text) {
+    const msg = $('importMsg');
+    try {
+      const spec = await CHARS.decodeCharacter(text);
+      CHARS.normalizeCharacter(spec);
+      draft = fromSpec(spec);
+      renderInfo();
+      changed();
+      msg.className = 'msg ok';
+      msg.textContent = `"${spec.label}" 캐릭터를 불러왔어요. 고친 뒤 코드를 다시 만들어 보내면 받은 사람 화면에서도 바뀌어요.`;
+    } catch (e) {
+      msg.className = 'msg err';
+      msg.textContent = e.message;
+    }
+  }
+  $('importBtn').onclick = () => importCode($('importCode').value);
+  $('importFile').onclick = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt,text/plain';
+    input.onchange = async () => input.files[0] && importCode(await input.files[0].text());
+    input.click();
+  };
+  $('newChar').onclick = () => {
+    if (!window.confirm('지금 만들던 캐릭터를 지우고 새로 만들까요?')) return;
+    draft = blank();
+    renderInfo();
+    changed();
+  };
+
+  // ---------- 샘플 ----------
+  // 기본 캐릭터를 새 캐릭터(새 id)로 불러온다. 원래 캐릭터는 그대로 남는다.
+  const hasWork = () => Object.values(draft.slots).some((s) => s.frames.length) || draft.specials.length;
+  for (const sample of window.HW40_SAMPLES || []) {
+    const b = document.createElement('button');
+    b.className = 'sample';
+    b.title = `${sample.label} 불러와서 고치기`;
+    b.innerHTML = '<i></i><span></span>';
+    const idle = sample.animations.idle;
+    b.querySelector('i').style.backgroundImage = `url("${idle.frames ? idle.frames[0] : idle.sheet}")`;
+    b.querySelector('span').textContent = sample.label;
+    b.onclick = () => {
+      if (hasWork() && !window.confirm(`지금 만들던 캐릭터 대신 "${sample.label}" 샘플을 불러올까요?`)) return;
+      draft = fromSpec({ ...CHARS.packToSpec(sample), id: CHARS.newId(), label: `내 ${sample.label}` });
+      renderInfo();
+      changed();
+      $('importMsg').textContent = '';
+      showCheck(`"${sample.label}" 샘플을 불러왔어요. 칸마다 들어 있는 그림을 바꿔 보세요.`, 'ok');
+      window.scrollTo({ top: document.querySelector('#slots').getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
+    };
+    $('samples').appendChild(b);
+  }
+
+  // 만들던 캐릭터가 있으면 이어서 보여준다.
+  try {
+    const saved = JSON.parse(localStorage.getItem(DRAFT_KEY));
+    if (saved && saved.id && saved.slots) draft = { ...blank(), ...saved };
+  } catch {
+    // 처음 열었거나 저장소를 못 쓰면 새로 시작한다.
+  }
+  renderInfo();
+  changed();
+})();
+</script>
+</body>
+</html>

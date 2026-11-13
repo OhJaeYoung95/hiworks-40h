@@ -18,11 +18,14 @@
   // 테마: 내가 추가한 테마 목록과 지금 고른 테마. 역시 이 브라우저에만 저장된다.
   const THEMES_KEY = 'hw40-themes';
   const ACTIVE_KEY = 'hw40-theme';
+  // 내 캐릭터: 캐릭터 코드로 추가한 그림 캐릭터들. 이 브라우저에만 저장된다.
+  const MY_CHARS_KEY = 'hw40-my-chars';
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const { characters: BUILTINS, meetLines: MEET_LINES, artCss: ART_CSS, confetti: CONFETTI } = globalThis.HW40_BUILTINS;
   const { createSpriteRenderer } = globalThis.HW40_SPRITE;
   const THEME_RULES = globalThis.HW40_THEMES;
+  const CHAR_RULES = globalThis.HW40_CHARS;
 
   const STYLE = `
     :host { will-change: transform; }
@@ -74,8 +77,11 @@
     ...BUILTINS.filter((d) => (!allowedBuiltins || allowedBuiltins.has(d.id)) && !packIds.has(d.id)),
     ...packDefs,
   ];
-  // 테마에서 고를 수 있는 모든 캐릭터 (config.json으로 기본 목록에서 뺀 캐릭터도 포함)
-  const CATALOG = new Map([...BUILTINS.filter((d) => !packIds.has(d.id)), ...packDefs].map((d) => [d.id, d]));
+  // 테마에서 고를 수 있는 모든 캐릭터 (config.json으로 기본 목록에서 뺀 캐릭터와 내 캐릭터도 포함)
+  const BASE_CATALOG = [...BUILTINS.filter((d) => !packIds.has(d.id)), ...packDefs];
+  let myDefs = [];
+  let CATALOG = new Map();
+  let knownIds = new Set();
 
 
   function readOff() {
@@ -410,9 +416,29 @@
 
   // ---------- 테마 ----------
   // 기본: 지금 배포된 캐릭터 그대로. 공용: 저장소 themes/ 폴더. 내 테마: 공유 코드로 추가한 것.
-  const DEFAULT_THEME = { key: 'default', name: '기본', source: 'default', cast: CHARACTERS.map((d) => ({ id: d.id })) };
+  // 저장된 내 캐릭터를 읽어 캐릭터 목록을 다시 만든다. 이 버전에서 읽을 수 없는 캐릭터는 건너뛴다.
+  function loadMyChars() {
+    const saved = readJson(MY_CHARS_KEY, []);
+    myDefs = [];
+    for (const spec of Array.isArray(saved) ? saved : []) {
+      try {
+        myDefs.push({ ...packDef(CHAR_RULES.normalizeCharacter(spec)), mine: true });
+      } catch {
+        // 깨진 캐릭터는 목록에서 숨긴다 (지우지는 않는다).
+      }
+    }
+    CATALOG = new Map([...BASE_CATALOG, ...myDefs].map((d) => [d.id, d]));
+    knownIds = new Set(CATALOG.keys());
+  }
+  if (CHAR_RULES) loadMyChars();
+  else {
+    CATALOG = new Map(BASE_CATALOG.map((d) => [d.id, d]));
+    knownIds = new Set(CATALOG.keys());
+  }
+
+  // 기본 테마: 배포된 기본 캐릭터 + 내 캐릭터
+  const defaultTheme = () => ({ key: 'default', name: '기본', source: 'default', cast: [...CHARACTERS, ...myDefs].map((d) => ({ id: d.id })) });
   const sharedThemes = (PACKS.themes || []).map((t) => ({ key: `shared:${t.id}`, name: t.name, source: 'shared', cast: t.cast }));
-  const knownIds = new Set(CATALOG.keys());
 
   function myThemes() {
     const saved = readJson(THEMES_KEY, []);
@@ -428,8 +454,8 @@
     }
     return out;
   }
-  const allThemes = () => [DEFAULT_THEME, ...sharedThemes, ...myThemes()];
-  const findTheme = (key) => allThemes().find((t) => t.key === key) || DEFAULT_THEME;
+  const allThemes = () => [defaultTheme(), ...sharedThemes, ...myThemes()];
+  const findTheme = (key) => allThemes().find((t) => t.key === key) || defaultTheme();
 
   let mascots = [];
   let off = readOff();
@@ -439,7 +465,7 @@
   function spawn(theme) {
     for (const m of mascots) m.host.remove();
     const cast = theme.cast.filter((c) => CATALOG.has(c.id));
-    const list = cast.length ? cast : DEFAULT_THEME.cast;
+    const list = cast.length ? cast : defaultTheme().cast;
     mascots = list.map((c, i) => createMascot(CATALOG.get(c.id), i, list.length, c));
     api.mascots = mascots;
     applyOff();
@@ -488,6 +514,45 @@
       return THEME_RULES.encodeTheme({ name: t.name, cast: t.cast });
     },
     site: PACKS.site || null,
+  };
+
+  // ---------- 내 캐릭터 ----------
+  const savedChars = () => {
+    const saved = readJson(MY_CHARS_KEY, []);
+    return Array.isArray(saved) ? saved : [];
+  };
+  api.characters = {
+    list: () => myDefs.map((d) => ({ id: d.id, label: d.label })),
+    // 캐릭터 코드를 추가하고 화면에 바로 내보낸다. 같은 캐릭터(id)면 새 그림으로 바꾼다.
+    async addCode(code) {
+      const spec = await CHAR_RULES.decodeCharacter(code);
+      const pack = CHAR_RULES.normalizeCharacter(spec);
+      const list = savedChars();
+      const replaced = list.some((c) => c && c.id === pack.id);
+      const next = [...list.filter((c) => c && c.id !== pack.id), spec];
+      if (!writeValue(MY_CHARS_KEY, next)) {
+        throw new CHAR_RULES.CharError('브라우저 저장 공간이 모자라 저장하지 못했어요. 안 쓰는 내 캐릭터를 지우거나 그림을 줄여 주세요.');
+      }
+      loadMyChars();
+      // 기본 테마를 쓰고 있으면 새 캐릭터가 바로 나온다. 다른 테마라도 지금 화면에 함께 보여준다.
+      const theme = findTheme(activeKey);
+      spawn(theme.cast.some((c) => c.id === pack.id) ? theme : { ...theme, cast: [...theme.cast, { id: pack.id }] });
+      const m = mascots.find((x) => x.id === pack.id);
+      if (m) {
+        m.say('안녕!', 2000);
+        m.hop();
+      }
+      return { id: pack.id, name: pack.label, replaced };
+    },
+    remove(id) {
+      writeValue(MY_CHARS_KEY, savedChars().filter((c) => c && c.id !== id));
+      loadMyChars();
+      spawn(findTheme(activeKey));
+    },
+    code: (id) => {
+      const spec = savedChars().find((c) => c && c.id === id);
+      return spec ? CHAR_RULES.encodeCharacter(spec) : Promise.reject(new Error('없는 캐릭터예요.'));
+    },
   };
   api.toggleMascot = () => {
     off = !off;

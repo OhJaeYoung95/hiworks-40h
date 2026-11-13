@@ -53,6 +53,9 @@ function studioFiles(packs) {
     // 테마 만들기 화면: 하이웍스와 같은 캐릭터 엔진을 이 페이지 아래에 띄워 미리 본다.
     'themes.html': fs.readFileSync(path.join(ROOT, 'site', 'themes.html'), 'utf8'),
     'studio/themes.js': src('themes.js'),
+    // 캐릭터 만들기 화면: 그림을 끌어다 놓고 캐릭터 코드를 만든다.
+    'maker.html': fs.readFileSync(path.join(ROOT, 'site', 'maker.html'), 'utf8'),
+    'studio/chars.js': src('chars.js'),
     'studio/builtin-characters.js': src('builtin-characters.js'),
     'studio/packs-data.js': `${packs}\n`,
     'studio/mascot.js': src('mascot.js'),
@@ -63,8 +66,9 @@ function studioFiles(packs) {
   };
 }
 const SCRIPT_NAME = 'hiworks-40h.user.js';
-// 실행 순서가 중요하다: 설정 → 계산 → 패널 → 기본 캐릭터 → 팩 재생기 → 테마 규칙 → 캐릭터 팩·공용 테마 → 캐릭터 엔진
-const SOURCES = ['config.js', 'calc.js', 'content.js', 'builtin-characters.js', 'sprite.js', 'themes.js', 'packs', 'mascot.js'];
+// 실행 순서가 중요하다: 설정 → 계산 → 패널 → 기본 캐릭터 → 팩 재생기 → 팩 규칙 → 테마·캐릭터 코드 규칙
+// → 캐릭터 팩·공용 테마 → 캐릭터 엔진
+const SOURCES = ['config.js', 'calc.js', 'content.js', 'builtin-characters.js', 'sprite.js', 'pack-rules', 'themes.js', 'chars.js', 'packs', 'mascot.js'];
 
 function readManifest() {
   return JSON.parse(fs.readFileSync(path.join(SRC, 'manifest.json'), 'utf8'));
@@ -109,7 +113,12 @@ function build({ version, baseUrl, repository, packsDir = PACKS_DIR, themesDir =
     '// ==/UserScript==',
   ].join('\n');
 
-  const read = (file) => (file === 'packs' ? packs : fs.readFileSync(path.join(SRC, file), 'utf8').trim());
+  const read = (file) => {
+    if (file === 'packs') return packs;
+    // 캐릭터 코드 검사에 쓰는 팩 규칙 (빌드와 같은 파일)
+    if (file === 'pack-rules') return fs.readFileSync(path.join(__dirname, 'packs.js'), 'utf8').trim();
+    return fs.readFileSync(path.join(SRC, file), 'utf8').trim();
+  };
   const body = SOURCES.map((file) => `// ---- ${file} ----\n${read(file)}`).join('\n\n');
 
   // 파일끼리 주고받는 값(HW40 등)을 페이지 전역이 아닌 이 객체에 둔다.
@@ -122,6 +131,7 @@ function build({ version, baseUrl, repository, packsDir = PACKS_DIR, themesDir =
     .replaceAll('{{VERSION}}', version)
     .replaceAll('{{REPO_URL}}', repoUrl || '#')
     .replaceAll('{{WEEKLY_HOURS}}', String(config.weeklyHours))
+    .replaceAll('{{WORK_START}}', config.workStart)
     .replaceAll('{{LUNCH}}', `${config.lunchStart}~${config.lunchEnd}`)
     .replaceAll('{{FRIDAY_LEAVE}}', config.fridayEarliestLeave);
 

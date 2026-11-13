@@ -34,9 +34,15 @@
       .menu-actions { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; font-size: 12px; }
       .menu-actions button, .menu-actions a { font-size: 12px; color: #3b5ba9; text-decoration: none; padding: 0; }
       .msg { font-size: 12px; color: #556; margin-top: 4px; }
+      .menu-title.sub { margin-top: 10px; }
+      .char { display: flex; align-items: center; gap: 4px; font-size: 13px; padding: 2px 4px; }
+      .char span { flex: 1; }
+      .char button { font-size: 12px; }
+      .empty-note { font-size: 12px; color: #889; padding: 2px 4px; }
+      textarea { width: 100%; box-sizing: border-box; height: 56px; font: 11px Consolas, monospace; margin-top: 4px; }
     </style>
     <div class="panel" id="panel">
-      <div class="head"><span id="title"></span><span><button id="pet" title="캐릭터 켜기/끄기">🐾</button><button id="theme" title="테마 바꾸기">🎨</button><button id="pic" title="몽실이를 내 그림으로 바꾸기 (이 브라우저에만 저장)">🖼</button><button id="min" title="접기">–</button></span></div>
+      <div class="head"><span id="title"></span><span><button id="pet" title="캐릭터 켜기/끄기">🐾</button><button id="theme" title="테마·내 캐릭터">🎨</button><button id="pic" title="몽실이를 내 그림으로 바꾸기 (이 브라우저에만 저장)">🖼</button><button id="min" title="접기">–</button></span></div>
       <div class="menu" id="themeMenu" hidden>
         <div class="menu-title">캐릭터 테마</div>
         <div id="themeList" role="radiogroup" aria-label="캐릭터 테마"></div>
@@ -44,6 +50,16 @@
           <button id="themeAdd">＋ 코드로 추가</button><button id="themeCopy">코드 복사</button><a id="themeMake" target="_blank" rel="noopener" hidden>테마 만들기 ↗</a>
         </div>
         <div class="msg" id="themeMsg" hidden></div>
+        <div class="menu-title sub">내 캐릭터 <span style="color:#99a">(이 브라우저에만 저장)</span></div>
+        <div id="charList"></div>
+        <div class="menu-actions">
+          <button id="charAdd">＋ 캐릭터 코드 넣기</button><button id="charFile">파일에서 넣기</button><a id="charMake" target="_blank" rel="noopener" hidden>캐릭터 만들기 ↗</a>
+        </div>
+        <div id="charPaste" hidden>
+          <textarea id="charCode" placeholder="받은 캐릭터 코드(HW40C1.…)를 붙여 넣으세요"></textarea>
+          <div class="menu-actions"><button id="charOk">넣기</button><button id="charCancel">취소</button></div>
+        </div>
+        <div class="msg" id="charMsg" hidden></div>
       </div>
       <div class="main" id="main"></div>
       <div class="note" id="note"></div>
@@ -112,8 +128,92 @@
     if (t.site) {
       $('themeMake').href = `${t.site}themes.html`;
       $('themeMake').hidden = false;
+      $('charMake').href = `${t.site}maker.html`;
+      $('charMake').hidden = false;
     }
+    renderChars();
   }
+  // ---------- 내 캐릭터 ----------
+  // 캐릭터 만들기 화면에서 받은 코드(또는 .txt 파일)를 넣으면 그림까지 이 브라우저에 저장된다.
+  const chars = () => globalThis.HW40.characters;
+  const charMessage = (text) => {
+    $('charMsg').textContent = text || '';
+    $('charMsg').hidden = !text;
+  };
+  function renderChars() {
+    const c = chars();
+    if (!c) return;
+    const list = c.list();
+    if (!list.length) {
+      const note = document.createElement('div');
+      note.className = 'empty-note';
+      note.textContent = '아직 없어요. 받은 코드를 넣거나 직접 만들어 보세요.';
+      $('charList').replaceChildren(note);
+      return;
+    }
+    $('charList').replaceChildren(
+      ...list.map((ch) => {
+        const row = document.createElement('div');
+        row.className = 'char';
+        const name = document.createElement('span');
+        name.textContent = ch.label;
+        const copy = document.createElement('button');
+        copy.textContent = '코드';
+        copy.title = '이 캐릭터 코드 복사 (동료에게 보내기)';
+        copy.onclick = async () => {
+          const code = await c.code(ch.id);
+          try {
+            await navigator.clipboard.writeText(code);
+            charMessage(`"${ch.label}" 코드를 복사했어요. 메신저에 붙여 넣어 보내 주세요.`);
+          } catch {
+            window.prompt('이 코드를 복사해 보내 주세요.', code);
+          }
+        };
+        const del = document.createElement('button');
+        del.textContent = '✕';
+        del.title = '이 캐릭터 지우기';
+        del.onclick = () => {
+          if (!window.confirm(`"${ch.label}" 캐릭터를 지울까요?`)) return;
+          c.remove(ch.id);
+          renderChars();
+          renderThemes();
+        };
+        row.append(name, copy, del);
+        return row;
+      })
+    );
+  }
+  async function addCharCode(code) {
+    try {
+      const r = await chars().addCode(code);
+      charMessage(r.replaced ? `"${r.name}" 캐릭터를 새 그림으로 바꿨어요.` : `"${r.name}" 캐릭터를 넣었어요!`);
+      $('charPaste').hidden = true;
+      $('charCode').value = '';
+    } catch (e) {
+      charMessage(e.message);
+    }
+    renderChars();
+  }
+  $('charAdd').onclick = () => {
+    $('charPaste').hidden = !$('charPaste').hidden;
+    charMessage('');
+    if (!$('charPaste').hidden) $('charCode').focus();
+  };
+  $('charCancel').onclick = () => {
+    $('charPaste').hidden = true;
+  };
+  $('charOk').onclick = () => addCharCode($('charCode').value);
+  $('charFile').onclick = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt,text/plain';
+    input.onchange = async () => {
+      const file = input.files && input.files[0];
+      if (file) addCharCode(await file.text());
+    };
+    input.click();
+  };
+
   $('theme').onclick = () => {
     $('themeMenu').hidden = !$('themeMenu').hidden;
     message('');

@@ -352,7 +352,7 @@
       const { theme, warnings } = T.normalizeTheme(T.decodeTheme($('importCode').value), new Set(byId.keys()));
       load(theme);
       msg.className = warnings.length ? 'msg warn' : 'msg ok';
-      msg.textContent = `"${theme.name}"을 불러왔어요.${warnings.length ? ` ${warnings.join(' ')}` : ''}`;
+      msg.textContent = `"${theme.name}" 테마를 불러왔어요.${warnings.length ? ` ${warnings.join(' ')}` : ''}`;
     } catch (e) {
       msg.className = 'msg err';
       msg.textContent = e.message;
