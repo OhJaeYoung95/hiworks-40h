@@ -60,6 +60,8 @@ function studioFiles(packs) {
     'studio/packs-data.js': `${packs}\n`,
     'studio/mascot.js': src('mascot.js'),
     'studio.html': fs.readFileSync(path.join(ROOT, 'site', 'studio.html'), 'utf8'),
+    // 연습용 근무 페이지: 설치한 스크립트로 "이 사이트에서 켜기"와 "읽을 곳 가르치기"를 해 본다.
+    'demo.html': fs.readFileSync(path.join(ROOT, 'site', 'demo.html'), 'utf8'),
     'studio/pack-rules.js': fs.readFileSync(path.join(__dirname, 'packs.js'), 'utf8'),
     'studio/sprite.js': fs.readFileSync(path.join(SRC, 'sprite.js'), 'utf8'),
     'studio/samples.js': `window.HW40_SAMPLES = ${JSON.stringify(samples)};\n`,

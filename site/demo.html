@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>연습용 근무 페이지</title>
+<!-- 하이웍스가 아닌 근무 페이지를 흉내 낸 연습장. 설치한 스크립트로 "이 사이트에서 켜기"와 "읽을 곳 가르치기"를 해 본다. -->
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 24px 16px; color: #223; background: #f6f7fb; }
+  main { max-width: 760px; margin: 0 auto; }
+  .guide { background: #fff8e6; border: 1px solid #f0d58a; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; line-height: 1.6; font-size: 14px; }
+  .guide ol { margin: 6px 0 0; padding-left: 20px; }
+  .top { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+  .card { background: #fff; border: 1px solid #ccd; border-radius: 8px; padding: 10px 14px; min-width: 120px; flex: 1; }
+  .card .k { font-size: 12px; color: #667; }
+  .card .v { font-size: 20px; font-weight: 700; }
+  table { border-collapse: collapse; background: #fff; }
+  td, th { border: 1px solid #ccd; padding: 4px 10px; }
+</style>
+<body>
+<main>
+  <div class="guide">
+    <b>연습용 가짜 근무 페이지예요.</b> 숫자는 모두 지어낸 거예요.
+    <ol>
+      <li>40시간 계산기 스크립트를 설치해 두세요.</li>
+      <li>Tampermonkey 아이콘 → "이 사이트에서 40시간 계산기 켜기"를 누르세요.</li>
+      <li>⚙️ 회사 설정에서 "읽을 곳 가르치기"를 누르고, 안내대로 아래 칸을 차례로 찍으세요.</li>
+      <li>다 해 봤으면 같은 메뉴의 "끄기"로 꺼 두세요.</li>
+    </ol>
+  </div>
+  <h2>근태 관리 · 나의 근무</h2>
+  <div class="top">
+    <div class="card"><div class="k">출근</div><div class="v" data-x="a81f3">IN 09:05</div></div>
+    <div class="card"><div class="k">퇴근</div><div class="v">--:--</div></div>
+    <div class="card"><div class="k">이번 주 누적 근무</div><div class="v">32:15</div></div>
+    <div class="card"><div class="k">휴가</div><div class="v">0h</div></div>
+  </div>
+  <table>
+    <tr><th>요일</th><th>출근</th><th>퇴근</th><th>근무</th></tr>
+    <tr><td>월</td><td>08:58</td><td>18:30</td><td>8.5h</td></tr>
+    <tr><td>화</td><td>09:10</td><td>19:20</td><td>9h</td></tr>
+    <tr><td>수</td><td>09:00</td><td>18:00</td><td>8h</td></tr>
+    <tr><td>목</td><td>09:02</td><td>17:47</td><td>6.75h</td></tr>
+  </table>
+</main>
+</body>
+</html>

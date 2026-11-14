@@ -36,7 +36,8 @@
     constructor(...a) { a.length ? super(...a) : super(fixed); }
     static now() { return fixed; }
   };
-  const files = ['../src/site.js', '../src/config.js', '../src/calc.js', '../src/company.js', '../src/reader.js', '../src/content.js', '../src/builtin-characters.js', '../src/sprite.js', '../scripts/packs.js', '../src/themes.js', '../src/chars.js', '../dist/packs.js', '../src/mascot.js', '../src/visit.js', '../src/room.js'];
+  // ?real 이면 이 페이지는 스크립트를 싣지 않는다. 설치한 Tampermonkey 스크립트로 직접 확인할 때 쓴다.
+  const files = params.has('real') ? [] : ['../src/site.js', '../src/config.js', '../src/calc.js', '../src/company.js', '../src/reader.js', '../src/content.js', '../src/builtin-characters.js', '../src/sprite.js', '../scripts/packs.js', '../src/themes.js', '../src/chars.js', '../dist/packs.js', '../src/mascot.js', '../src/visit.js', '../src/room.js'];
   for (const src of files) {
     const s = document.createElement('script');
     s.src = src;
