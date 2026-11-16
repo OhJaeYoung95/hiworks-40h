@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<title>두들링으로 이사했어요</title>
+<script>
+  // 옛 주소(/hiworks-40h/…)의 다른 페이지도 새 주소(/doodling/…)의 같은 페이지로 보낸다.
+  var rest = location.pathname.replace(/^\/hiworks-40h\/?/, '');
+  location.replace('https://ohjaeyoung95.github.io/doodling/' + rest + location.search + location.hash);
+</script>
+<body><p><a href="https://ohjaeyoung95.github.io/doodling/">두들링 새 주소로 가기</a></p></body>
+</html>
